@@ -143,6 +143,8 @@ def delete_lead(
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail={"message": "Lead not found.", "code": "not_found"})
+    from app.models.lead_sequence_step import LeadSequenceStep
+    db.query(LeadSequenceStep).filter(LeadSequenceStep.lead_id == lead_id).delete()
     db.delete(lead)
     db.commit()
 
