@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+
+# Environment
+.env
+*.env.local
+
+# Node
+node_modules/
+.next/
+frontend/.next/
+frontend/out/
+
+# Docker
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Superpowers (brainstorm mockups — not source code)
+.superpowers/
+
+# Alembic
+backend/alembic/versions/__pycache__/
+
+# SSL certificates (contain private keys — never commit)
+nginx/ssl/
