@@ -1,0 +1,141 @@
+.page { background: #f7f8fc; font-family: 'Plus Jakarta Sans', sans-serif; min-height: 100vh; }
+
+/* topbar removed — sidebar handles navigation */
+
+/* ── Main content ── */
+.main { padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+.pageHeader { margin-bottom: 28px; }
+.pageTitle {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px; font-weight: 800;
+  color: #0f172a; margin-bottom: 4px;
+}
+.pageSubtitle { font-size: 14px; color: #94a3b8; }
+
+/* ── Filters ── */
+.filters {
+  display: flex; gap: 12px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.filterSelect, .filterInput {
+  padding: 9px 14px;
+  border: 1.5px solid #e8edf5;
+  border-radius: 10px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px; color: #0f172a;
+  background: white;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.filterSelect:focus, .filterInput:focus { border-color: #a78bfa; }
+
+/* ── Section headings ── */
+.sectionTitle {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px; font-weight: 700;
+  color: #0f172a; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── Stat cards grid ── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.statCard {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 22px;
+  border: 1px solid #edf1f7;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s;
+}
+.statCard:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.08); }
+.statCardHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.statCardLabel { font-size: 12px; font-weight: 600; color: #94a3b8; letter-spacing: 0.04em; text-transform: uppercase; }
+.statCardIcon {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+}
+.statCardValue {
+  font-family: 'Syne', sans-serif;
+  font-size: 30px; font-weight: 800;
+  color: #0f172a; line-height: 1;
+  margin-bottom: 6px;
+}
+.statCardSub { font-size: 12px; color: #94a3b8; }
+.statCardRate { font-size: 12px; font-weight: 600; }
+.rateGood { color: #10b981; }
+.rateBad  { color: #ef4444; }
+
+/* Icon backgrounds */
+.iconPurple { background: #f5f3ff; }
+.iconPink   { background: #fff0f6; }
+.iconGreen  { background: #f0fdf4; }
+.iconAmber  { background: #fffbeb; }
+.iconBlue   { background: #eff6ff; }
+.iconTeal   { background: #f0fdfa; }
+
+/* ── Two-column layout ── */
+.twoCol { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+.threeCol { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 28px; }
+
+/* ── Funnel card ── */
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #edf1f7;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.funnelItem {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 14px;
+}
+.funnelLabel { font-size: 13px; color: #475569; font-weight: 500; width: 110px; flex-shrink: 0; }
+.funnelBarWrap { flex: 1; background: #f1f5f9; border-radius: 20px; height: 10px; overflow: hidden; }
+.funnelBar { height: 100%; border-radius: 20px; transition: width 0.8s ease; }
+.funnelCount { font-size: 13px; font-weight: 700; color: #0f172a; width: 40px; text-align: right; }
+
+/* ── Lead pipeline ── */
+.pipelineRow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.pipelineRow:last-child { border-bottom: none; }
+.pipelineDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.pipelineLabel { font-size: 13px; color: #475569; flex: 1; }
+.pipelineCount { font-size: 14px; font-weight: 700; color: #0f172a; }
+.pipelineBar { width: 80px; background: #f1f5f9; border-radius: 20px; height: 6px; overflow: hidden; }
+.pipelineBarFill { height: 100%; border-radius: 20px; }
+
+/* ── WA rates ── */
+.waRateItem {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.waRateItem:last-child { border-bottom: none; }
+.waRateLabel { font-size: 13px; color: #475569; display: flex; align-items: center; gap: 8px; }
+.waRateValue { font-size: 15px; font-weight: 700; color: #0f172a; }
+
+/* Loading & error */
+.loading { display: flex; align-items: center; justify-content: center; min-height: 400px; color: #94a3b8; font-size: 14px; }
+.error { display: flex; align-items: center; justify-content: center; min-height: 400px; color: #ef4444; font-size: 14px; }
+
+@media (max-width: 1024px) {
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .twoCol, .threeCol { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .statsGrid { grid-template-columns: 1fr; }
+  .main { padding: 16px; }
+}
