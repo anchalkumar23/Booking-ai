@@ -53,6 +53,15 @@ export default function CustomersPage() {
     } finally { setSubmitting(false); }
   }
 
+  async function deleteCustomer(id: string, name: string) {
+    if (!confirm(`Delete customer "${name}"? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/v1/customers/${id}`, { method:"DELETE" });
+      setToast({message:"Customer deleted",type:"success"});
+      fetchData();
+    } catch { setToast({message:"Failed to delete",type:"error"}); }
+  }
+
   const locationName = (id: string) => locations.find(l => l.id === id)?.name || "—";
 
   return (
@@ -79,7 +88,7 @@ export default function CustomersPage() {
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
             <thead>
               <tr style={{ background:"#f8fafc", borderBottom:"1px solid #edf1f7" }}>
-                {["Name","Phone","Email","Language","Location","DND","Suppressed","Added"].map(h => (
+                {["Name","Phone","Email","Language","Location","DND","Suppressed","Added",""].map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -95,6 +104,9 @@ export default function CustomersPage() {
                   <td style={tdStyle}>{c.is_dnd ? <span style={{color:"#ef4444",fontWeight:600}}>Yes</span> : "No"}</td>
                   <td style={tdStyle}>{c.is_suppressed ? <span style={{color:"#ef4444",fontWeight:600}}>Yes</span> : "No"}</td>
                   <td style={tdStyle}>{new Date(c.created_at).toLocaleDateString("en-IN")}</td>
+                  <td style={tdStyle}>
+                    <button onClick={() => deleteCustomer(c.id, c.full_name)} style={{ padding:"4px 10px", borderRadius:7, border:"1.5px solid #cbd5e1", background:"#f8fafc", color:"#64748b", fontSize:11, fontWeight:600, cursor:"pointer" }}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

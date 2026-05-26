@@ -134,6 +134,19 @@ def stop_lead_outreach(
     return lead
 
 
+@router.delete("/{lead_id}", status_code=204)
+def delete_lead(
+    lead_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail={"message": "Lead not found.", "code": "not_found"})
+    db.delete(lead)
+    db.commit()
+
+
 @router.patch("/{lead_id}/convert", response_model=LeadOut)
 def convert_lead(
     lead_id: uuid.UUID,

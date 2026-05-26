@@ -50,6 +50,15 @@ def get_customer(customer_id: uuid.UUID, db: Session = Depends(get_db), _=Depend
     return customer
 
 
+@router.delete("/{customer_id}", status_code=204)
+def delete_customer(customer_id: uuid.UUID, db: Session = Depends(get_db), _=Depends(_get_current_user)):
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail={"message": "Customer not found.", "code": "not_found"})
+    db.delete(customer)
+    db.commit()
+
+
 @router.put("/{customer_id}", response_model=CustomerOut)
 def update_customer(customer_id: uuid.UUID, body: CustomerUpdate, db: Session = Depends(get_db), _=Depends(_get_current_user)):
     customer = db.query(Customer).filter(Customer.id == customer_id).first()

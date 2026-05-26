@@ -102,6 +102,15 @@ export default function LeadsPage() {
     } catch { setToast({message:"Failed",type:"error"}); }
   }
 
+  async function deleteLead(id: string, name: string) {
+    if (!confirm(`Delete lead "${name}"? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/v1/leads/${id}`, { method:"DELETE" });
+      setToast({message:"Lead deleted",type:"success"});
+      fetchData();
+    } catch { setToast({message:"Failed to delete",type:"error"}); }
+  }
+
   async function convertLead(id: string) {
     try {
       await apiFetch(`/v1/leads/${id}/convert`, { method:"PATCH" });
@@ -206,6 +215,7 @@ export default function LeadsPage() {
                       {!l.wa_stopped && !l.call_stopped && (
                         <button onClick={() => stopOutreach(l.id)} style={dangerBtnStyle}>Stop</button>
                       )}
+                      <button onClick={() => deleteLead(l.id, l.full_name)} style={deleteBtnStyle}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -272,3 +282,4 @@ const gradientBtnStyle: React.CSSProperties = { padding:"11px 20px", borderRadiu
 const outlineBtnStyle: React.CSSProperties = { padding:"10px 18px", borderRadius:10, border:"1.5px solid #e8edf5", background:"white", color:"#475569", fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:600, fontSize:13, cursor:"pointer" };
 const dangerBtnStyle: React.CSSProperties = { padding:"4px 10px", borderRadius:7, border:"1.5px solid #fca5a5", background:"#fef2f2", color:"#b91c1c", fontSize:11, fontWeight:600, cursor:"pointer" };
 const successBtnStyle: React.CSSProperties = { padding:"4px 10px", borderRadius:7, border:"1.5px solid #86efac", background:"#f0fdf4", color:"#15803d", fontSize:11, fontWeight:600, cursor:"pointer" };
+const deleteBtnStyle: React.CSSProperties = { padding:"4px 10px", borderRadius:7, border:"1.5px solid #cbd5e1", background:"#f8fafc", color:"#64748b", fontSize:11, fontWeight:600, cursor:"pointer" };
