@@ -11,30 +11,23 @@ def _headers() -> dict:
     }
 
 
-def _build_payload(agent_id: str, recipient_phone: str, variables: dict) -> dict:
-    # variables goes at top level for {{placeholder}} substitution in the agent prompt
-    # user_data is echoed back in the webhook so we can identify the call
-    metadata_keys = {"appointment_id", "lead_id", "membership_id", "retry_count"}
-    user_data = {k: v for k, v in variables.items() if k in metadata_keys}
-    return {
-        "agent_id": agent_id,
-        "recipient_phone_number": recipient_phone,
-        "variables": variables,
-        "user_data": user_data,
-    }
-
-
 async def trigger_outbound_call(
     agent_id: str,
     recipient_phone: str,
     variables: dict,
 ) -> dict:
-    """Trigger a single outbound call via Bolna API."""
+    """Trigger a single outbound call via Bolna API.
+    Bolna substitutes {variable_name} placeholders in the agent prompt from user_data."""
+    payload = {
+        "agent_id": agent_id,
+        "recipient_phone_number": recipient_phone,
+        "user_data": variables,
+    }
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"{BOLNA_BASE_URL}/call",
             headers=_headers(),
-            json=_build_payload(agent_id, recipient_phone, variables),
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()
@@ -46,11 +39,16 @@ def trigger_outbound_call_sync(
     variables: dict,
 ) -> dict:
     """Synchronous version for use inside Celery tasks."""
+    payload = {
+        "agent_id": agent_id,
+        "recipient_phone_number": recipient_phone,
+        "user_data": variables,
+    }
     with httpx.Client(timeout=30) as client:
         resp = client.post(
             f"{BOLNA_BASE_URL}/call",
             headers=_headers(),
-            json=_build_payload(agent_id, recipient_phone, variables),
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()

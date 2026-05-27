@@ -72,6 +72,7 @@ def _trigger_outreach(lead: Lead, location: Location) -> None:
         "business_name": location.name,
         "business_type": location.type.value,
         "city": location.city,
+        "lead_name": lead.full_name,
         "customer_name": lead.full_name,
         "language": lead.language.value,
         "lead_id": str(lead.id),
