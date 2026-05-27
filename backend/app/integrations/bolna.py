@@ -1,5 +1,8 @@
+import logging
 import httpx
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 BOLNA_BASE_URL = "https://api.bolna.ai"
 
@@ -44,11 +47,13 @@ def trigger_outbound_call_sync(
         "recipient_phone_number": recipient_phone,
         "user_data": variables,
     }
+    logger.info(f"Bolna call payload: {payload}")
     with httpx.Client(timeout=30) as client:
         resp = client.post(
             f"{BOLNA_BASE_URL}/call",
             headers=_headers(),
             json=payload,
         )
+        logger.info(f"Bolna response {resp.status_code}: {resp.text}")
         resp.raise_for_status()
         return resp.json()
