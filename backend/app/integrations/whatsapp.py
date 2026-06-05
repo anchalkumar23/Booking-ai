@@ -49,7 +49,12 @@ def send_template_message(
             headers=_headers(),
             json=payload,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            logger.error(
+                f"WhatsApp API error {resp.status_code} for {phone}: {resp.text} "
+                f"(phone_number_id={settings.whatsapp_phone_number_id})"
+            )
+            resp.raise_for_status()
         return resp.json()
 
 
@@ -70,7 +75,12 @@ def send_text_message(phone: str, text: str) -> dict:
             headers=_headers(),
             json=payload,
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            logger.error(
+                f"WhatsApp API error {resp.status_code} for {phone}: {resp.text} "
+                f"(phone_number_id={settings.whatsapp_phone_number_id})"
+            )
+            resp.raise_for_status()
         return resp.json()
 
 
