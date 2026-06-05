@@ -15,3 +15,4 @@ google-auth==2.35.0
 google-api-python-client==2.149.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
+bcrypt==4.0.1
