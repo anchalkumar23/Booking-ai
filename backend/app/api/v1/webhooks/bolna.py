@@ -39,21 +39,44 @@ def _verify_signature(body: bytes, signature: str) -> bool:
     return hmac.compare_digest(expected, signature or "")
 
 
-def _detect_outcome(payload: dict) -> CallOutcome:
-    """Map Bolna webhook payload to our CallOutcome."""
-    status = payload.get("status", "").lower()
-    transcript = payload.get("transcript", "").lower()
+def _detect_outcome(
+    status: str,
+    transcript: str,
+    hangup_reason: str,
+    confidence_score: float | None,
+) -> CallOutcome:
+    """Map Bolna execution status + transcript heuristics to our CallOutcome."""
+    status = (status or "").lower()
+    transcript_lower = (transcript or "").lower()
+    hangup_reason = (hangup_reason or "").lower()
 
-    # Check transcript for explicit signals
+    # Check transcript for explicit signals first
     not_interested_phrases = [
         "not interested", "don't call", "remove me",
         "band karo", "nahin chahiye", "வேண்டாம்"
     ]
-    if any(p in transcript for p in not_interested_phrases):
+    if any(p in transcript_lower for p in not_interested_phrases):
         return CallOutcome.not_interested
 
-    if payload.get("confidence_score", 1.0) < 0.70:
+    if confidence_score is not None and confidence_score < 0.70:
         return CallOutcome.low_confidence
+
+    booked_phrases = ["booked", "confirmed", "see you", "appointment is set", "scheduled"]
+    if any(p in transcript_lower for p in booked_phrases):
+        return CallOutcome.booked
+
+    if status in ("no-answer", "no_answer"):
+        return CallOutcome.no_answer
+    if status == "busy" or "busy" in hangup_reason:
+        return CallOutcome.busy
+    if status in ("failed", "cancelled", "error"):
+        return CallOutcome.failed
+
+    if status == "completed":
+        # Call connected and finished but no clear booking signal in transcript
+        if not transcript_lower.strip():
+            return CallOutcome.no_answer
+        return CallOutcome.booked
 
     return OUTCOME_MAP.get(status, CallOutcome.failed)
 
@@ -74,6 +97,10 @@ def _suppress_contact(db: Session, phone: str, source: SuppressionSource) -> Non
     db.commit()
 
 
+# Bolna sends webhooks for every status transition. We only persist/act on terminal states.
+TERMINAL_STATUSES = {"completed", "busy", "no-answer", "no_answer", "failed", "cancelled", "error"}
+
+
 @router.post("/call-outcome")
 async def bolna_call_outcome(request: Request, db: Session = Depends(get_db)):
     body = await request.body()
@@ -83,24 +110,42 @@ async def bolna_call_outcome(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     payload = await request.json()
-    logger.info(f"Bolna webhook received: {payload.get('call_id')}")
+    logger.info(f"Bolna webhook payload: {payload}")
 
-    call_id = payload.get("call_id") or payload.get("id", "")
-    phone = payload.get("to_number") or payload.get("recipient_phone_number", "")
+    # Bolna's execution schema: top-level "id", "status", "transcript",
+    # "conversation_duration", "telephony_data": {to_number, recording_url, duration, hangup_reason}
+    call_id = payload.get("id") or payload.get("call_id", "")
+    status = (payload.get("status") or "").lower()
+    telephony = payload.get("telephony_data") or {}
+    phone = (
+        telephony.get("to_number")
+        or payload.get("to_number")
+        or payload.get("recipient_phone_number", "")
+    )
     agent_id = payload.get("agent_id", "")
-    transcript = payload.get("transcript", "")
-    recording_url = payload.get("recording_url", "")
-    duration_secs = payload.get("duration", 0)
-    confidence_score = payload.get("confidence_score", 1.0)
-    user_data = payload.get("user_data", {})
+    transcript = payload.get("transcript") or ""
+    recording_url = telephony.get("recording_url") or payload.get("recording_url", "")
+    duration_secs = int(
+        payload.get("conversation_duration")
+        or telephony.get("duration")
+        or 0
+    )
+    extracted_data = payload.get("extracted_data") or {}
+    context_details = payload.get("context_details") or {}
+    user_data = {**context_details, **payload.get("user_data", {})}
+    summary = extracted_data.get("summary") or extracted_data.get("call_summary")
+    confidence_score = extracted_data.get("confidence_score")
+    hangup_reason = telephony.get("hangup_reason", "")
 
-    # Idempotency — skip if already processed
-    existing = db.query(CallLog).filter(CallLog.bolna_call_id == call_id).first()
-    if existing:
-        return {"status": "already_processed"}
+    if not call_id:
+        logger.warning("Bolna webhook missing call id, ignoring")
+        return {"status": "ignored", "reason": "no_call_id"}
 
-    # Detect outcome
-    outcome = _detect_outcome(payload)
+    if status not in TERMINAL_STATUSES:
+        logger.info(f"Bolna webhook for {call_id}: non-terminal status '{status}', skipping")
+        return {"status": "ignored", "reason": "not_terminal"}
+
+    outcome = _detect_outcome(status, transcript, hangup_reason, confidence_score)
 
     # Determine purpose from agent_id
     purpose_map = {
@@ -110,21 +155,34 @@ async def bolna_call_outcome(request: Request, db: Session = Depends(get_db)):
     }
     purpose = purpose_map.get(agent_id, CallPurpose.reminder)
 
-    # Save call log
-    call_log = CallLog(
-        bolna_call_id=call_id,
-        phone=phone,
-        direction=CallDirection.outbound,
-        purpose=purpose,
-        outcome=outcome,
-        confidence_score=confidence_score,
-        duration_secs=duration_secs,
-        transcript=transcript,
-        recording_url=recording_url,
-        retry_count=int(user_data.get("retry_count", 0)),
-        called_at=datetime.now(timezone.utc),
-    )
-    db.add(call_log)
+    # Upsert — first webhook for a call may arrive before the final terminal one
+    call_log = db.query(CallLog).filter(CallLog.bolna_call_id == call_id).first()
+    if call_log and call_log.outcome is not None:
+        return {"status": "already_processed"}
+
+    if call_log:
+        call_log.outcome = outcome
+        call_log.transcript = transcript
+        call_log.summary = summary
+        call_log.recording_url = recording_url
+        call_log.duration_secs = duration_secs
+        call_log.confidence_score = confidence_score
+    else:
+        call_log = CallLog(
+            bolna_call_id=call_id,
+            phone=phone,
+            direction=CallDirection.outbound,
+            purpose=purpose,
+            outcome=outcome,
+            confidence_score=confidence_score,
+            duration_secs=duration_secs,
+            transcript=transcript,
+            summary=summary,
+            recording_url=recording_url,
+            retry_count=int(user_data.get("retry_count", 0)),
+            called_at=datetime.now(timezone.utc),
+        )
+        db.add(call_log)
     db.commit()
 
     # Handle outcome side effects

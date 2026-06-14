@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
-import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Location { id: string; name: string; }
 interface Customer {
@@ -65,90 +66,98 @@ export default function CustomersPage() {
   const locationName = (id: string) => locations.find(l => l.id === id)?.name || "—";
 
   return (
-    <div style={{ padding:32, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+    <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 }}>
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#0f172a", marginBottom:4 }}>👥 Customers</h1>
-          <p style={{ fontSize:14, color:"#94a3b8" }}>{customers.length} customers total</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">👥 Customers</h1>
+          <p className="mt-2 text-muted-foreground">{customers.length} customers total</p>
         </div>
-        <button onClick={() => setShowAdd(true)} style={gradientBtnStyle}>+ Add Customer</button>
-      </div>
-      <div style={{ display:"flex", gap:12, marginBottom:20 }}>
-        <input placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)} style={selectStyle} />
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={selectStyle}>
+        <Button onClick={() => setShowAdd(true)}>+ Add Customer</Button>
+      </header>
+
+      <div className="mb-5 flex flex-wrap gap-3">
+        <Input placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)} className="w-full sm:w-64" />
+        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-56">
           <option value="">All Locations</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <button onClick={fetchData} style={{ ...selectStyle, background:"#f1f5f9", cursor:"pointer", border:"none", fontWeight:600 }}>Refresh</button>
+        <Button variant="secondary" onClick={fetchData}>Refresh</Button>
       </div>
-      <div style={{ background:"white", borderRadius:16, border:"1px solid #edf1f7", overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
-        {loading ? <div style={{ padding:48, textAlign:"center", color:"#94a3b8" }}>Loading…</div> :
-        customers.length === 0 ? <div style={{ padding:48, textAlign:"center", color:"#94a3b8" }}>No customers yet.</div> : (
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+
+      {loading ? (
+        <div className="rounded-2xl border border-border bg-card py-12 text-center text-muted-foreground shadow-sm">Loading…</div>
+      ) : customers.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card py-12 text-center text-muted-foreground shadow-sm">No customers yet.</div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr style={{ background:"#f8fafc", borderBottom:"1px solid #edf1f7" }}>
+              <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {["Name","Phone","Email","Language","Location","DND","Suppressed","Added",""].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
+                  <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {customers.map((c, i) => (
-                <tr key={c.id} style={{ borderBottom:"1px solid #f1f5f9", background:i%2===0?"white":"#fafbff" }}>
-                  <td style={tdStyle}><b style={{color:"#0f172a"}}>{c.full_name}</b></td>
-                  <td style={tdStyle}>{c.phone}</td>
-                  <td style={tdStyle}>{c.email || "—"}</td>
-                  <td style={tdStyle}>{c.language.toUpperCase()}</td>
-                  <td style={tdStyle}>{locationName(c.location_id)}</td>
-                  <td style={tdStyle}>{c.is_dnd ? <span style={{color:"#ef4444",fontWeight:600}}>Yes</span> : "No"}</td>
-                  <td style={tdStyle}>{c.is_suppressed ? <span style={{color:"#ef4444",fontWeight:600}}>Yes</span> : "No"}</td>
-                  <td style={tdStyle}>{new Date(c.created_at).toLocaleDateString("en-IN")}</td>
-                  <td style={tdStyle}>
-                    <button onClick={() => deleteCustomer(c.id, c.full_name)} style={{ padding:"4px 10px", borderRadius:7, border:"1.5px solid #cbd5e1", background:"#f8fafc", color:"#64748b", fontSize:11, fontWeight:600, cursor:"pointer" }}>Delete</button>
+              {customers.map((c) => (
+                <tr key={c.id} className="border-b border-border/60 last:border-0">
+                  <td className="px-4 py-3 font-semibold text-foreground">{c.full_name}</td>
+                  <td className="px-4 py-3">{c.phone}</td>
+                  <td className="px-4 py-3">{c.email || "—"}</td>
+                  <td className="px-4 py-3">{c.language.toUpperCase()}</td>
+                  <td className="px-4 py-3">{locationName(c.location_id)}</td>
+                  <td className="px-4 py-3">{c.is_dnd ? <span className="font-semibold text-rose-500">Yes</span> : "No"}</td>
+                  <td className="px-4 py-3">{c.is_suppressed ? <span className="font-semibold text-rose-500">Yes</span> : "No"}</td>
+                  <td className="px-4 py-3">{new Date(c.created_at).toLocaleDateString("en-IN")}</td>
+                  <td className="px-4 py-3">
+                    <Button size="sm" variant="outline" onClick={() => deleteCustomer(c.id, c.full_name)}>Delete</Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
+
       {showAdd && (
         <Modal title="Add Customer" onClose={() => setShowAdd(false)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div className="flex flex-col gap-3.5">
             <div>
-              <label style={labelStyle}>Location *</label>
-              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
+              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
                 <option value="">Select location…</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={labelStyle}>Full Name *</label><input value={form.full_name} onChange={e => setForm({...form,full_name:e.target.value})} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Phone *</label><input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+91..." style={inputStyle} /></div>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={labelStyle}>Email</label><input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" style={inputStyle} /></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label style={labelStyle}>Language</label>
-                <select value={form.language} onChange={e => setForm({...form,language:e.target.value})} style={inputStyle}>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
+                <Input value={form.full_name} onChange={e => setForm({...form,full_name:e.target.value})} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+91..." />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Email</label>
+                <Input value={form.email} onChange={e => setForm({...form,email:e.target.value})} type="email" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Language</label>
+                <select value={form.language} onChange={e => setForm({...form,language:e.target.value})} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
                   <option value="en">English</option><option value="hi">Hindi</option><option value="ta">Tamil</option>
                 </select>
               </div>
             </div>
-            <button onClick={addCustomer} disabled={submitting || !form.location_id || !form.full_name || !form.phone} style={{ ...gradientBtnStyle, opacity:submitting?0.7:1 }}>
+            <Button onClick={addCustomer} disabled={submitting || !form.location_id || !form.full_name || !form.phone} className="w-full">
               {submitting ? "Adding…" : "Add Customer"}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-const selectStyle: React.CSSProperties = { padding:"9px 14px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none" };
-const thStyle: React.CSSProperties = { padding:"12px 16px", textAlign:"left", fontWeight:600, color:"#64748b", fontSize:11, letterSpacing:"0.04em", textTransform:"uppercase" as const };
-const tdStyle: React.CSSProperties = { padding:"12px 16px", color:"#475569" };
-const labelStyle: React.CSSProperties = { display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:6 };
-const inputStyle: React.CSSProperties = { width:"100%", padding:"10px 12px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none", boxSizing:"border-box" as const };
-const gradientBtnStyle: React.CSSProperties = { padding:"11px 20px", borderRadius:10, border:"none", background:"linear-gradient(90deg,#f472b6,#a78bfa,#60a5fa)", color:"white", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", boxShadow:"0 4px 16px rgba(167,139,250,0.35)" };

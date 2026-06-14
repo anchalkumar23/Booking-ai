@@ -4,6 +4,8 @@ import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Location { id: string; name: string; }
 interface Customer { id: string; full_name: string; phone: string; }
@@ -17,6 +19,8 @@ interface Appointment {
 }
 
 const SERVICES = ["Gym Session", "Personal Training", "Yoga", "Haircut", "Facial", "Massage", "Dining Reservation", "Other"];
+
+const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -108,140 +112,126 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div style={{ padding: 32, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 }}>
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#0f172a", marginBottom:4 }}>
-            📅 Appointments
-          </h1>
-          <p style={{ fontSize:14, color:"#94a3b8" }}>Book, manage and track all appointments</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📅 Appointments</h1>
+          <p className="mt-2 text-muted-foreground">Book, manage and track all appointments</p>
         </div>
-        <button onClick={() => setShowBook(true)} style={{
-          padding:"10px 20px", borderRadius:10, border:"none",
-          background:"linear-gradient(90deg,#f472b6,#a78bfa,#60a5fa)",
-          color:"white", fontFamily:"'Syne',sans-serif", fontWeight:700,
-          fontSize:13, cursor:"pointer", boxShadow:"0 4px 16px rgba(167,139,250,0.35)",
-        }}>+ Book Appointment</button>
+        <Button onClick={() => setShowBook(true)}>+ Book Appointment</Button>
       </div>
 
       {/* Filters */}
-      <div style={{ display:"flex", gap:12, marginBottom:24, flexWrap:"wrap" }}>
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={selectStyle}>
+      <div className="mb-6 flex flex-wrap gap-3">
+        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className={`${selectClass} sm:w-auto`}>
           <option value="">All Locations</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={selectStyle} />
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selectStyle}>
+        <Input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="sm:w-auto" />
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`${selectClass} sm:w-auto`}>
           <option value="">All Statuses</option>
           {["scheduled","completed","cancelled","no_show"].map(s => <option key={s} value={s}>{s.replace("_"," ")}</option>)}
         </select>
-        <button onClick={fetchData} style={{ ...selectStyle, background:"#f1f5f9", cursor:"pointer", border:"none", fontWeight:600 }}>
-          Refresh
-        </button>
+        <Button variant="outline" onClick={fetchData}>Refresh</Button>
       </div>
 
       {/* Table */}
-      <div style={{ background:"white", borderRadius:16, border:"1px solid #edf1f7", overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
-        {loading ? (
-          <div style={{ padding:48, textAlign:"center", color:"#94a3b8" }}>Loading…</div>
-        ) : appointments.length === 0 ? (
-          <div style={{ padding:48, textAlign:"center", color:"#94a3b8" }}>No appointments found. Book one to get started.</div>
-        ) : (
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+      {loading ? (
+        <div className="rounded-2xl border border-border bg-card py-12 text-center text-muted-foreground shadow-sm">Loading…</div>
+      ) : appointments.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card py-12 text-center text-muted-foreground shadow-sm">No appointments found. Book one to get started.</div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr style={{ background:"#f8fafc", borderBottom:"1px solid #edf1f7" }}>
+              <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {["Customer","Location","Service","Date & Time","Duration","Status","Booked Via","Actions"].map(h => (
-                  <th key={h} style={{ padding:"12px 16px", textAlign:"left", fontWeight:600, color:"#64748b", fontSize:11, letterSpacing:"0.04em", textTransform:"uppercase" }}>{h}</th>
+                  <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {appointments.map((a, i) => (
-                <tr key={a.id} style={{ borderBottom:"1px solid #f1f5f9", background: i%2===0?"white":"#fafbff" }}>
-                  <td style={tdStyle}><b style={{color:"#0f172a"}}>{customerName(a.customer_id)}</b></td>
-                  <td style={tdStyle}>{locationName(a.location_id)}</td>
-                  <td style={tdStyle}>{a.service}</td>
-                  <td style={tdStyle}>{new Date(a.scheduled_at).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",dateStyle:"medium",timeStyle:"short"})}</td>
-                  <td style={tdStyle}>{a.duration_mins} min</td>
-                  <td style={tdStyle}><StatusBadge status={a.status} /></td>
-                  <td style={tdStyle}><StatusBadge status={a.booked_via} /></td>
-                  <td style={tdStyle}>
+              {appointments.map(a => (
+                <tr key={a.id} className="border-b border-border/60 last:border-0">
+                  <td className="px-4 py-3 font-semibold text-foreground">{customerName(a.customer_id)}</td>
+                  <td className="px-4 py-3">{locationName(a.location_id)}</td>
+                  <td className="px-4 py-3">{a.service}</td>
+                  <td className="px-4 py-3">{new Date(a.scheduled_at).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",dateStyle:"medium",timeStyle:"short"})}</td>
+                  <td className="px-4 py-3">{a.duration_mins} min</td>
+                  <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={a.booked_via} /></td>
+                  <td className="px-4 py-3">
                     {a.status === "scheduled" && (
-                      <button onClick={() => cancelAppointment(a.id)} style={dangerBtnStyle}>Cancel</button>
+                      <Button variant="destructive" size="sm" onClick={() => cancelAppointment(a.id)}>Cancel</Button>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Book Modal */}
       {showBook && (
         <Modal title="Book Appointment" onClose={() => setShowBook(false)} width={540}>
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div className="flex flex-col gap-4">
             <div>
-              <label style={labelStyle}>Customer</label>
-              <select value={form.customer_id} onChange={e => setForm({...form, customer_id:e.target.value})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Customer</label>
+              <select value={form.customer_id} onChange={e => setForm({...form, customer_id:e.target.value})} className={selectClass}>
                 <option value="">Select customer…</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} ({c.phone})</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Location</label>
-              <select value={form.location_id} onChange={e => setForm({...form, location_id:e.target.value, slot:""})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Location</label>
+              <select value={form.location_id} onChange={e => setForm({...form, location_id:e.target.value, slot:""})} className={selectClass}>
                 <option value="">Select location…</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Service</label>
-              <select value={form.service} onChange={e => setForm({...form, service:e.target.value})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Service</label>
+              <select value={form.service} onChange={e => setForm({...form, service:e.target.value})} className={selectClass}>
                 {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label style={labelStyle}>Date</label>
-                <input type="date" value={form.date} onChange={e => setForm({...form, date:e.target.value, slot:""})} style={inputStyle} />
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Date</label>
+                <Input type="date" value={form.date} onChange={e => setForm({...form, date:e.target.value, slot:""})} />
               </div>
               <div>
-                <label style={labelStyle}>Duration (mins)</label>
-                <select value={form.duration_mins} onChange={e => setForm({...form, duration_mins:+e.target.value, slot:""})} style={inputStyle}>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Duration (mins)</label>
+                <select value={form.duration_mins} onChange={e => setForm({...form, duration_mins:+e.target.value, slot:""})} className={selectClass}>
                   {[30,60,90,120].map(d => <option key={d} value={d}>{d} min</option>)}
                 </select>
               </div>
             </div>
             <div>
-              <label style={labelStyle}>Available Slot {loadingSlots && <span style={{color:"#a78bfa"}}>loading…</span>}</label>
-              <select value={form.slot} onChange={e => setForm({...form, slot:e.target.value})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">
+                Available Slot {loadingSlots && <span className="text-accent-foreground">loading…</span>}
+              </label>
+              <select value={form.slot} onChange={e => setForm({...form, slot:e.target.value})} className={selectClass}>
                 <option value="">Select a slot…</option>
                 {slots.map(s => <option key={s.datetime} value={s.datetime}>{s.time} ({s.available_staff} staff free)</option>)}
               </select>
               {form.location_id && form.date && slots.length === 0 && !loadingSlots && (
-                <p style={{fontSize:12,color:"#ef4444",marginTop:4}}>No slots available on this date.</p>
+                <p className="mt-1 text-xs text-rose-500">No slots available on this date.</p>
               )}
             </div>
-            <button
+            <Button
               onClick={bookAppointment}
               disabled={submitting || !form.customer_id || !form.slot}
-              style={{ ...gradientBtnStyle, opacity: submitting || !form.customer_id || !form.slot ? 0.6 : 1 }}
+              className="w-full"
             >
               {submitting ? "Booking…" : "Confirm Booking"}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-const selectStyle: React.CSSProperties = { padding:"9px 14px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none" };
-const tdStyle: React.CSSProperties = { padding:"12px 16px", color:"#475569" };
-const labelStyle: React.CSSProperties = { display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:6, letterSpacing:"0.02em" };
-const inputStyle: React.CSSProperties = { width:"100%", padding:"10px 12px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none", boxSizing:"border-box" };
-const dangerBtnStyle: React.CSSProperties = { padding:"5px 12px", borderRadius:7, border:"1.5px solid #fca5a5", background:"#fef2f2", color:"#b91c1c", fontSize:12, fontWeight:600, cursor:"pointer" };
-const gradientBtnStyle: React.CSSProperties = { padding:"13px", borderRadius:10, border:"none", background:"linear-gradient(90deg,#f472b6,#a78bfa,#60a5fa)", color:"white", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14, cursor:"pointer", boxShadow:"0 4px 16px rgba(167,139,250,0.35)" };

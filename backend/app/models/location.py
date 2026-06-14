@@ -19,3 +19,4 @@ class Location(UUIDMixin, Base):
     phone: Mapped[str] = mapped_column(String, nullable=False)
     timezone: Mapped[str] = mapped_column(String, default="Asia/Kolkata")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    access_code: Mapped[str | None] = mapped_column(String, nullable=True)

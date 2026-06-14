@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
-import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Call {
   id: string;
@@ -10,10 +11,11 @@ interface Call {
   phone: string;
   direction: string;
   purpose: string;
-  outcome: string;
+  outcome: string | null;
   confidence_score: number;
   duration_secs: number;
   transcript: string;
+  summary: string | null;
   recording_url: string;
   retry_count: number;
   called_at: string;
@@ -23,9 +25,9 @@ const PURPOSES = ["reminder", "renewal", "lead"];
 const OUTCOMES = ["booked", "busy", "no_answer", "failed", "low_confidence", "not_interested", "transferred"];
 
 const OUTCOME_COLORS: Record<string, string> = {
-  booked: "#059669", not_interested: "#dc2626", failed: "#dc2626",
-  no_answer: "#d97706", busy: "#d97706", low_confidence: "#7c3aed",
-  transferred: "#0284c7",
+  booked: "text-emerald-600", not_interested: "text-rose-600", failed: "text-rose-600",
+  no_answer: "text-amber-600", busy: "text-amber-600", low_confidence: "text-violet-600",
+  transferred: "text-sky-600",
 };
 
 function formatDuration(secs: number): string {
@@ -78,83 +80,85 @@ export default function CallsPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { setOffset(0); }, [filterPurpose, filterOutcome, filterPhone]);
 
+  const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-48";
+
   return (
-    <div style={{ padding: 32, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+    <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>📞 Call History</h1>
-          <p style={{ fontSize: 14, color: "#94a3b8" }}>{total} calls total</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📞 Call History</h1>
+          <p className="mt-2 text-muted-foreground">{total} calls total</p>
         </div>
-        <button onClick={fetchData} style={outlineBtnStyle}>Refresh</button>
+        <Button variant="outline" onClick={fetchData}>Refresh</Button>
       </div>
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <input
+      <div className="mb-5 flex flex-wrap gap-3">
+        <Input
           placeholder="Search by phone…"
           value={filterPhone}
           onChange={e => setFilterPhone(e.target.value)}
-          style={selectStyle}
+          className="sm:w-48"
         />
-        <select value={filterPurpose} onChange={e => setFilterPurpose(e.target.value)} style={selectStyle}>
+        <select value={filterPurpose} onChange={e => setFilterPurpose(e.target.value)} className={selectClass}>
           <option value="">All Purposes</option>
           {PURPOSES.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
         </select>
-        <select value={filterOutcome} onChange={e => setFilterOutcome(e.target.value)} style={selectStyle}>
+        <select value={filterOutcome} onChange={e => setFilterOutcome(e.target.value)} className={selectClass}>
           <option value="">All Outcomes</option>
           {OUTCOMES.map(o => <option key={o} value={o}>{o.replace("_", " ")}</option>)}
         </select>
         {(filterPurpose || filterOutcome || filterPhone) && (
-          <button onClick={() => { setFilterPurpose(""); setFilterOutcome(""); setFilterPhone(""); }} style={{ ...outlineBtnStyle, color: "#ef4444" }}>Clear</button>
+          <Button variant="outline" onClick={() => { setFilterPurpose(""); setFilterOutcome(""); setFilterPhone(""); }} className="text-rose-500">
+            Clear
+          </Button>
         )}
       </div>
 
       {/* Table */}
-      <div style={{ background: "white", borderRadius: 16, border: "1px solid #edf1f7", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
         {loading ? (
-          <div style={{ padding: 48, textAlign: "center", color: "#94a3b8" }}>Loading…</div>
+          <div className="p-12 text-center text-muted-foreground">Loading…</div>
         ) : calls.length === 0 ? (
-          <div style={{ padding: 48, textAlign: "center", color: "#94a3b8" }}>No calls found.</div>
+          <div className="p-12 text-center text-muted-foreground">No calls found.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table className="w-full text-sm">
             <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #edf1f7" }}>
+              <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {["Phone", "Purpose", "Outcome", "Confidence", "Duration", "Retries", "Time", "Transcript"].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
+                  <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {calls.map((c, i) => (
-                <tr key={c.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "white" : "#fafbff" }}>
-                  <td style={tdStyle}><b style={{ color: "#0f172a" }}>{c.phone}</b></td>
-                  <td style={tdStyle}>
-                    <span style={{ background: "#f1f5f9", color: "#475569", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>
+              {calls.map(c => (
+                <tr key={c.id} className="border-b border-border/60 last:border-0">
+                  <td className="px-4 py-3"><span className="font-semibold text-foreground">{c.phone}</span></td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-foreground">
                       {c.purpose}
                     </span>
                   </td>
-                  <td style={tdStyle}>
-                    <span style={{ color: OUTCOME_COLORS[c.outcome] || "#475569", fontWeight: 600, fontSize: 12 }}>
-                      {c.outcome.replace("_", " ")}
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-semibold ${(c.outcome && OUTCOME_COLORS[c.outcome]) || "text-muted-foreground"}`}>
+                      {c.outcome ? c.outcome.replace("_", " ") : "pending"}
                     </span>
                   </td>
-                  <td style={tdStyle}>
-                    <span style={{ color: c.confidence_score < 0.7 ? "#dc2626" : "#059669", fontWeight: 600 }}>
+                  <td className="px-4 py-3">
+                    <span className={`font-semibold ${c.confidence_score < 0.7 ? "text-rose-600" : "text-emerald-600"}`}>
                       {c.confidence_score ? `${Math.round(c.confidence_score * 100)}%` : "—"}
                     </span>
                   </td>
-                  <td style={tdStyle}>{formatDuration(c.duration_secs)}</td>
-                  <td style={tdStyle}>{c.retry_count > 0 ? <span style={{ color: "#d97706", fontWeight: 600 }}>{c.retry_count}</span> : "0"}</td>
-                  <td style={{ ...tdStyle, whiteSpace: "nowrap", fontSize: 11, color: "#94a3b8" }}>{formatTime(c.called_at)}</td>
-                  <td style={tdStyle}>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDuration(c.duration_secs)}</td>
+                  <td className="px-4 py-3">{c.retry_count > 0 ? <span className="font-semibold text-amber-600">{c.retry_count}</span> : "0"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">{formatTime(c.called_at)}</td>
+                  <td className="px-4 py-3">
                     {c.transcript ? (
-                      <button onClick={() => setTranscript(c)} style={transcriptBtnStyle}>
-                        View
-                      </button>
+                      <Button size="sm" variant="outline" onClick={() => setTranscript(c)}>View</Button>
                     ) : (
-                      <span style={{ color: "#cbd5e1", fontSize: 11 }}>None</span>
+                      <span className="text-xs text-muted-foreground">None</span>
                     )}
                   </td>
                 </tr>
@@ -166,61 +170,70 @@ export default function CallsPage() {
 
       {/* Pagination */}
       {total > LIMIT && (
-        <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 20 }}>
-          <button disabled={offset === 0} onClick={() => setOffset(o => Math.max(0, o - LIMIT))} style={outlineBtnStyle}>
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <Button variant="outline" disabled={offset === 0} onClick={() => setOffset(o => Math.max(0, o - LIMIT))}>
             ← Previous
-          </button>
-          <span style={{ fontSize: 13, color: "#64748b", alignSelf: "center" }}>
+          </Button>
+          <span className="text-sm text-muted-foreground">
             {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
           </span>
-          <button disabled={offset + LIMIT >= total} onClick={() => setOffset(o => o + LIMIT)} style={outlineBtnStyle}>
+          <Button variant="outline" disabled={offset + LIMIT >= total} onClick={() => setOffset(o => o + LIMIT)}>
             Next →
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Transcript Modal */}
       {transcript && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-6"
           onClick={() => setTranscript(null)}>
-          <div style={{ background: "white", borderRadius: 16, padding: 28, maxWidth: 680, width: "100%", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl bg-card p-7 shadow-2xl"
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+            <div className="mb-4 flex items-start justify-between">
               <div>
-                <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+                <h2 className="font-serif text-lg font-semibold tracking-tight text-foreground">
                   Call Transcript
                 </h2>
-                <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0" }}>
+                <p className="mt-1 text-xs text-muted-foreground">
                   {transcript.phone} · {transcript.purpose} · {formatTime(transcript.called_at)}
                 </p>
               </div>
-              <button onClick={() => setTranscript(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8" }}>✕</button>
+              <button onClick={() => setTranscript(null)} className="text-xl text-muted-foreground hover:text-foreground">✕</button>
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12, background: "#f1f5f9", padding: "3px 10px", borderRadius: 20, color: "#475569" }}>
-                Outcome: <b style={{ color: OUTCOME_COLORS[transcript.outcome] }}>{transcript.outcome.replace("_", " ")}</b>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground">
+                Outcome: <b className={transcript.outcome ? OUTCOME_COLORS[transcript.outcome] : undefined}>{transcript.outcome ? transcript.outcome.replace("_", " ") : "pending"}</b>
               </span>
-              <span style={{ fontSize: 12, background: "#f1f5f9", padding: "3px 10px", borderRadius: 20, color: "#475569" }}>
+              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground">
                 Duration: <b>{formatDuration(transcript.duration_secs)}</b>
               </span>
-              <span style={{ fontSize: 12, background: "#f1f5f9", padding: "3px 10px", borderRadius: 20, color: "#475569" }}>
-                Confidence: <b style={{ color: transcript.confidence_score < 0.7 ? "#dc2626" : "#059669" }}>
-                  {Math.round(transcript.confidence_score * 100)}%
+              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs text-secondary-foreground">
+                Confidence: <b className={(transcript.confidence_score ?? 1) < 0.7 ? "text-rose-600" : "text-emerald-600"}>
+                  {Math.round((transcript.confidence_score ?? 0) * 100)}%
                 </b>
               </span>
             </div>
 
             {transcript.recording_url && (
-              <div style={{ marginBottom: 16 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 8 }}>Recording</p>
-                <audio controls src={transcript.recording_url} style={{ width: "100%" }} />
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">Recording</p>
+                <audio controls src={transcript.recording_url} className="w-full" />
+              </div>
+            )}
+
+            {transcript.summary && (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">Summary</p>
+                <div className="rounded-xl border border-accent bg-accent/40 p-4 text-sm leading-relaxed text-foreground">
+                  {transcript.summary}
+                </div>
               </div>
             )}
 
             <div>
-              <p style={{ fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 8 }}>Transcript</p>
-              <div style={{ background: "#f8fafc", borderRadius: 10, padding: 16, fontSize: 13, color: "#334155", lineHeight: 1.7, whiteSpace: "pre-wrap", maxHeight: 360, overflow: "auto", border: "1px solid #e2e8f0" }}>
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">Transcript</p>
+              <div className="max-h-[360px] overflow-auto rounded-xl border border-border bg-secondary/40 p-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
                 {transcript.transcript || "No transcript available."}
               </div>
             </div>
@@ -230,9 +243,3 @@ export default function CallsPage() {
     </div>
   );
 }
-
-const selectStyle: React.CSSProperties = { padding: "9px 14px", border: "1.5px solid #e8edf5", borderRadius: 10, fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 13, color: "#0f172a", background: "white", outline: "none", minWidth: 160 };
-const thStyle: React.CSSProperties = { padding: "12px 16px", textAlign: "left", fontWeight: 600, color: "#64748b", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase" as const };
-const tdStyle: React.CSSProperties = { padding: "12px 16px", color: "#475569" };
-const outlineBtnStyle: React.CSSProperties = { padding: "9px 16px", borderRadius: 10, border: "1.5px solid #e8edf5", background: "white", color: "#475569", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const transcriptBtnStyle: React.CSSProperties = { padding: "4px 12px", borderRadius: 7, border: "1.5px solid #c7d2fe", background: "#eef2ff", color: "#4338ca", fontSize: 11, fontWeight: 600, cursor: "pointer" };

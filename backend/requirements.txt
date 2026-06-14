@@ -2,7 +2,7 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 sqlalchemy==2.0.36
 alembic==1.13.3
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 redis==5.1.1
 celery==5.4.0
 python-jose[cryptography]==3.3.0
@@ -15,3 +15,4 @@ google-auth==2.35.0
 google-api-python-client==2.149.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
+bcrypt==4.0.1

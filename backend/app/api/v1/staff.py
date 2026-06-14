@@ -51,6 +51,17 @@ def update_staff(staff_id: uuid.UUID, body: StaffUpdate, db: Session = Depends(g
     return staff
 
 
+@router.delete("/{staff_id}", status_code=204)
+def delete_staff(staff_id: uuid.UUID, db: Session = Depends(get_db), _=Depends(_get_current_user)):
+    staff = db.query(Staff).filter(Staff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail={"message": "Staff not found.", "code": "not_found"})
+    from app.models.appointment import Appointment
+    db.query(Appointment).filter(Appointment.staff_id == staff_id).update({"staff_id": None})
+    db.delete(staff)
+    db.commit()
+
+
 @router.patch("/{staff_id}/deactivate", response_model=StaffOut)
 def deactivate_staff(staff_id: uuid.UUID, db: Session = Depends(get_db), _=Depends(_get_current_user)):
     staff = db.query(Staff).filter(Staff.id == staff_id).first()

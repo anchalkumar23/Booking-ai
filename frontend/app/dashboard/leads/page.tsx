@@ -4,6 +4,8 @@ import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Location { id: string; name: string; }
 interface Lead {
@@ -15,8 +17,12 @@ interface Lead {
 
 const STATUSES = ["new","contacted","interested","converted","not_interested"];
 const PIPELINE_COLORS: Record<string,string> = {
-  new:"#94a3b8", contacted:"#60a5fa", interested:"#a78bfa",
-  converted:"#10b981", not_interested:"#f87171",
+  new:"bg-slate-400", contacted:"bg-blue-400", interested:"bg-violet-400",
+  converted:"bg-emerald-500", not_interested:"bg-rose-400",
+};
+const PIPELINE_BORDER_COLORS: Record<string,string> = {
+  new:"border-slate-400", contacted:"border-blue-400", interested:"border-violet-400",
+  converted:"border-emerald-500", not_interested:"border-rose-400",
 };
 
 export default function LeadsPage() {
@@ -125,161 +131,156 @@ export default function LeadsPage() {
   const summary = STATUSES.reduce((acc, s) => ({ ...acc, [s]: leads.filter(l => l.status === s).length }), {} as Record<string,number>);
 
   return (
-    <div style={{ padding:32, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+    <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} style={{display:"none"}} />
+      <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
 
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#0f172a", marginBottom:4 }}>🎯 Leads</h1>
-          <p style={{ fontSize:14, color:"#94a3b8" }}>Manage lead outreach across calls and WhatsApp</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">🎯 Leads</h1>
+          <p className="mt-2 text-muted-foreground">Manage lead outreach across calls and WhatsApp</p>
         </div>
-        <div style={{ display:"flex", gap:10 }}>
-          <button onClick={() => fileRef.current?.click()} disabled={importing} style={outlineBtnStyle}>
+        <div className="flex gap-2.5">
+          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
             {importing ? "Importing…" : "⬆ Import CSV"}
-          </button>
-          <button onClick={() => setShowAdd(true)} style={gradientBtnStyle}>+ Add Lead</button>
+          </Button>
+          <Button onClick={() => setShowAdd(true)}>+ Add Lead</Button>
         </div>
-      </div>
+      </header>
 
       {/* Pipeline summary */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:24 }}>
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {STATUSES.map(s => (
-          <div key={s} onClick={() => setFilterStatus(filterStatus === s ? "" : s)}
-            style={{ background:"white", borderRadius:12, padding:"14px 16px", border:`2px solid ${filterStatus===s ? PIPELINE_COLORS[s] : "#edf1f7"}`, cursor:"pointer", transition:"all 0.15s" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:PIPELINE_COLORS[s] }} />
-              <span style={{ fontSize:11, fontWeight:600, color:"#94a3b8", textTransform:"capitalize" }}>{s.replace("_"," ")}</span>
+          <button
+            key={s}
+            onClick={() => setFilterStatus(filterStatus === s ? "" : s)}
+            className={`rounded-2xl border-2 bg-card px-4 py-3.5 text-left shadow-sm transition-colors ${filterStatus===s ? PIPELINE_BORDER_COLORS[s] : "border-border"}`}
+          >
+            <div className="mb-1 flex items-center gap-1.5">
+              <div className={`h-2 w-2 rounded-full ${PIPELINE_COLORS[s]}`} />
+              <span className="text-xs font-semibold capitalize text-muted-foreground">{s.replace("_"," ")}</span>
             </div>
-            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#0f172a" }}>{summary[s] || 0}</div>
-          </div>
+            <div className="font-serif text-2xl tracking-tight text-foreground sm:text-3xl">{summary[s] || 0}</div>
+          </button>
         ))}
       </div>
 
       {/* Filters */}
-      <div style={{ display:"flex", gap:12, marginBottom:20, flexWrap:"wrap" }}>
-        <input placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)} style={selectStyle} />
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={selectStyle}>
+      <div className="mb-5 flex flex-wrap gap-3">
+        <Input placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)} className="w-full sm:w-64" />
+        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-56">
           <option value="">All Locations</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
-        <button onClick={fetchData} style={{ ...selectStyle, background:"#f1f5f9", cursor:"pointer", border:"none", fontWeight:600 }}>Refresh</button>
+        <Button variant="secondary" onClick={fetchData}>Refresh</Button>
       </div>
 
       {/* CSV tip */}
-      <div style={{ background:"#faf5ff", border:"1px solid #e9d5ff", borderRadius:10, padding:"10px 16px", marginBottom:20, fontSize:12, color:"#6d28d9" }}>
-        💡 <b>CSV Import:</b> Select a location first, then click "Import CSV". Format: <code>full_name,phone,language,source</code>
+      <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
+        💡 <b>CSV Import:</b> Select a location first, then click &quot;Import CSV&quot;. Format: <code>full_name,phone,language,source</code>
       </div>
 
       {/* Table */}
-      <div style={{ background:"white", borderRadius:16, border:"1px solid #edf1f7", overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
-        {loading ? (
-          <div style={{ padding:48, textAlign:"center", color:"#94a3b8" }}>Loading…</div>
-        ) : leads.length === 0 ? (
-          <div style={{ padding:48, textAlign:"center", color:"#94a3b8" }}>No leads found. Add one or import a CSV.</div>
-        ) : (
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+      {loading ? (
+        <div className="rounded-2xl border border-border bg-card py-12 text-center text-muted-foreground shadow-sm">Loading…</div>
+      ) : leads.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card py-12 text-center text-muted-foreground shadow-sm">No leads found. Add one or import a CSV.</div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr style={{ background:"#f8fafc", borderBottom:"1px solid #edf1f7" }}>
+              <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {["Name","Phone","Language","Source","Status","WA Step","Outreach","Actions"].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
+                  <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {leads.map((l, i) => (
-                <tr key={l.id} style={{ borderBottom:"1px solid #f1f5f9", background: i%2===0?"white":"#fafbff" }}>
-                  <td style={tdStyle}><b style={{color:"#0f172a"}}>{l.full_name}</b><br/><span style={{fontSize:11,color:"#94a3b8"}}>{locationName(l.location_id)}</span></td>
-                  <td style={tdStyle}>{l.phone}</td>
-                  <td style={tdStyle}>{l.language.toUpperCase()}</td>
-                  <td style={tdStyle}>{l.source}</td>
-                  <td style={tdStyle}><StatusBadge status={l.status} /></td>
-                  <td style={tdStyle}>
-                    <span style={{ fontSize:11, color:"#64748b" }}>Step {l.wa_sequence_step}/4</span>
-                    <div style={{ display:"flex", gap:4, marginTop:3 }}>
-                      {l.wa_stopped && <span style={{ fontSize:10, background:"#fef2f2", color:"#b91c1c", padding:"1px 6px", borderRadius:20 }}>WA stopped</span>}
-                      {l.call_stopped && <span style={{ fontSize:10, background:"#fef2f2", color:"#b91c1c", padding:"1px 6px", borderRadius:20 }}>Calls stopped</span>}
+              {leads.map((l) => (
+                <tr key={l.id} className="border-b border-border/60 last:border-0">
+                  <td className="px-4 py-3">
+                    <span className="font-semibold text-foreground">{l.full_name}</span><br/>
+                    <span className="text-xs text-muted-foreground">{locationName(l.location_id)}</span>
+                  </td>
+                  <td className="px-4 py-3">{l.phone}</td>
+                  <td className="px-4 py-3">{l.language.toUpperCase()}</td>
+                  <td className="px-4 py-3">{l.source}</td>
+                  <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-muted-foreground">Step {l.wa_sequence_step}/4</span>
+                    <div className="mt-1 flex gap-1">
+                      {l.wa_stopped && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-700">WA stopped</span>}
+                      {l.call_stopped && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-700">Calls stopped</span>}
                     </div>
                   </td>
-                  <td style={tdStyle}>
-                    <div style={{ display:"flex", gap:4 }}>
-                      {!l.wa_stopped && <span style={{ fontSize:10, background:"#f0fdf4", color:"#15803d", padding:"2px 7px", borderRadius:20 }}>💬 Active</span>}
-                      {!l.call_stopped && <span style={{ fontSize:10, background:"#eff6ff", color:"#1d4ed8", padding:"2px 7px", borderRadius:20 }}>📞 Active</span>}
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      {!l.wa_stopped && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">💬 Active</span>}
+                      {!l.call_stopped && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">📞 Active</span>}
                     </div>
                   </td>
-                  <td style={tdStyle}>
-                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1.5">
                       {l.status !== "converted" && (
-                        <button onClick={() => convertLead(l.id)} style={successBtnStyle}>Convert</button>
+                        <Button size="sm" variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => convertLead(l.id)}>Convert</Button>
                       )}
                       {!l.wa_stopped && !l.call_stopped && (
-                        <button onClick={() => stopOutreach(l.id)} style={dangerBtnStyle}>Stop</button>
+                        <Button size="sm" variant="destructive" onClick={() => stopOutreach(l.id)}>Stop</Button>
                       )}
-                      <button onClick={() => deleteLead(l.id, l.full_name)} style={deleteBtnStyle}>Delete</button>
+                      <Button size="sm" variant="outline" onClick={() => deleteLead(l.id, l.full_name)}>Delete</Button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Add Lead Modal */}
       {showAdd && (
         <Modal title="Add New Lead" onClose={() => setShowAdd(false)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div className="flex flex-col gap-3.5">
             <div>
-              <label style={labelStyle}>Location *</label>
-              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
+              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
                 <option value="">Select location…</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label style={labelStyle}>Full Name *</label>
-                <input value={form.full_name} onChange={e => setForm({...form,full_name:e.target.value})} placeholder="Ravi Kumar" style={inputStyle} />
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
+                <Input value={form.full_name} onChange={e => setForm({...form,full_name:e.target.value})} placeholder="Ravi Kumar" />
               </div>
               <div>
-                <label style={labelStyle}>Phone *</label>
-                <input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+919876543210" style={inputStyle} />
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+919876543210" />
               </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label style={labelStyle}>Language</label>
-                <select value={form.language} onChange={e => setForm({...form,language:e.target.value})} style={inputStyle}>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Language</label>
+                <select value={form.language} onChange={e => setForm({...form,language:e.target.value})} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
                   <option value="en">English</option>
                   <option value="hi">Hindi</option>
                   <option value="ta">Tamil</option>
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Source</label>
-                <input value={form.source} onChange={e => setForm({...form,source:e.target.value})} placeholder="facebook_ad" style={inputStyle} />
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Source</label>
+                <Input value={form.source} onChange={e => setForm({...form,source:e.target.value})} placeholder="facebook_ad" />
               </div>
             </div>
-            <div style={{ background:"#f0fdf4", border:"1px solid #bbf7e6", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#15803d" }}>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-700">
               ✅ Adding this lead will <b>automatically start</b> the 4-step WhatsApp sequence and a Bolna cold call.
             </div>
-            <button onClick={addLead} disabled={submitting || !form.location_id || !form.full_name || !form.phone} style={{ ...gradientBtnStyle, opacity: submitting ? 0.7 : 1 }}>
+            <Button onClick={addLead} disabled={submitting || !form.location_id || !form.full_name || !form.phone} className="w-full">
               {submitting ? "Adding…" : "Add Lead & Start Outreach"}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-const selectStyle: React.CSSProperties = { padding:"9px 14px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none" };
-const thStyle: React.CSSProperties = { padding:"12px 16px", textAlign:"left", fontWeight:600, color:"#64748b", fontSize:11, letterSpacing:"0.04em", textTransform:"uppercase" as const };
-const tdStyle: React.CSSProperties = { padding:"12px 16px", color:"#475569" };
-const labelStyle: React.CSSProperties = { display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:6, letterSpacing:"0.02em" };
-const inputStyle: React.CSSProperties = { width:"100%", padding:"10px 12px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none", boxSizing:"border-box" as const };
-const gradientBtnStyle: React.CSSProperties = { padding:"11px 20px", borderRadius:10, border:"none", background:"linear-gradient(90deg,#f472b6,#a78bfa,#60a5fa)", color:"white", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", boxShadow:"0 4px 16px rgba(167,139,250,0.35)" };
-const outlineBtnStyle: React.CSSProperties = { padding:"10px 18px", borderRadius:10, border:"1.5px solid #e8edf5", background:"white", color:"#475569", fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:600, fontSize:13, cursor:"pointer" };
-const dangerBtnStyle: React.CSSProperties = { padding:"4px 10px", borderRadius:7, border:"1.5px solid #fca5a5", background:"#fef2f2", color:"#b91c1c", fontSize:11, fontWeight:600, cursor:"pointer" };
-const successBtnStyle: React.CSSProperties = { padding:"4px 10px", borderRadius:7, border:"1.5px solid #86efac", background:"#f0fdf4", color:"#15803d", fontSize:11, fontWeight:600, cursor:"pointer" };
-const deleteBtnStyle: React.CSSProperties = { padding:"4px 10px", borderRadius:7, border:"1.5px solid #cbd5e1", background:"#f8fafc", color:"#64748b", fontSize:11, fontWeight:600, cursor:"pointer" };

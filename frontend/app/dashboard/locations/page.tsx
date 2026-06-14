@@ -4,11 +4,19 @@ import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 
 interface Location {
   id: string; name: string; type: string; city: string;
   phone: string; timezone: string; is_active: boolean; created_at: string;
+  access_code: string | null;
 }
+
+const TYPE_ICONS: Record<string, string> = { gym: "🏋️", salon: "💇", restaurant: "🍽️" };
+const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
@@ -16,7 +24,8 @@ export default function LocationsPage() {
   const [toast, setToast] = useState<{message:string;type:"error"|"success"}|null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name:"", type:"gym", city:"", phone:"", timezone:"Asia/Kolkata" });
+  const [form, setForm] = useState({ name:"", type:"gym", city:"", phone:"", timezone:"Asia/Kolkata", access_code:"" });
+  const [codeEdits, setCodeEdits] = useState<Record<string,string>>({});
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -30,10 +39,10 @@ export default function LocationsPage() {
   async function addLocation() {
     setSubmitting(true);
     try {
-      await apiFetch("/v1/locations", { method:"POST", body:JSON.stringify(form) });
+      await apiFetch("/v1/locations", { method:"POST", body:JSON.stringify({...form, access_code: form.access_code || undefined}) });
       setToast({message:"Location added",type:"success"});
       setShowAdd(false);
-      setForm({name:"",type:"gym",city:"",phone:"",timezone:"Asia/Kolkata"});
+      setForm({name:"",type:"gym",city:"",phone:"",timezone:"Asia/Kolkata",access_code:""});
       fetchData();
     } catch (e: any) {
       setToast({message:e.detail?.message || "Failed",type:"error"});
@@ -49,90 +58,127 @@ export default function LocationsPage() {
     } catch { setToast({message:"Failed",type:"error"}); }
   }
 
-  const TYPE_ICONS: Record<string,string> = { gym:"🏋️", salon:"💇", restaurant:"🍽️" };
+  async function saveAccessCode(id: string) {
+    const code = (codeEdits[id] ?? "").trim();
+    try {
+      await apiFetch(`/v1/locations/${id}`, { method:"PUT", body:JSON.stringify({ access_code: code }) });
+      setToast({message:"Access code updated",type:"success"});
+      fetchData();
+    } catch { setToast({message:"Failed to update access code",type:"error"}); }
+  }
 
   return (
-    <div style={{ padding:32, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+    <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 }}>
+
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#0f172a", marginBottom:4 }}>🏢 Locations</h1>
-          <p style={{ fontSize:14, color:"#94a3b8" }}>{locations.length} business locations</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">🏢 Locations</h1>
+          <p className="mt-2 text-muted-foreground">{locations.length} business locations</p>
         </div>
-        <button onClick={() => setShowAdd(true)} style={gradientBtnStyle}>+ Add Location</button>
+        <Button onClick={() => setShowAdd(true)}>+ Add Location</Button>
       </div>
-      {loading ? <div style={{ color:"#94a3b8" }}>Loading…</div> :
-      locations.length === 0 ? (
-        <div style={{ textAlign:"center", padding:64, color:"#94a3b8" }}>
-          <div style={{ fontSize:48, marginBottom:16 }}>🏢</div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:18, color:"#0f172a", marginBottom:8 }}>No locations yet</div>
-          <div style={{ marginBottom:20 }}>Add your first gym, salon or restaurant</div>
-          <button onClick={() => setShowAdd(true)} style={gradientBtnStyle}>+ Add Location</button>
-        </div>
+
+      {loading ? (
+        <div className="text-muted-foreground">Loading…</div>
+      ) : locations.length === 0 ? (
+        <Card className="p-16 text-center">
+          <div className="mb-4 text-5xl">🏢</div>
+          <div className="mb-2 font-serif text-lg font-semibold tracking-tight text-foreground">No locations yet</div>
+          <div className="mb-5 text-muted-foreground">Add your first gym, salon or restaurant</div>
+          <Button onClick={() => setShowAdd(true)}>+ Add Location</Button>
+        </Card>
       ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:16 }}>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {locations.map(l => (
-            <div key={l.id} style={{ background:"white", borderRadius:16, padding:22, border:"1px solid #edf1f7", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
-              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:12 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ fontSize:28 }}>{TYPE_ICONS[l.type] || "🏢"}</div>
+            <Card key={l.id} className="p-5">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="text-2xl">{TYPE_ICONS[l.type] || "🏢"}</div>
                   <div>
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16, color:"#0f172a" }}>{l.name}</div>
-                    <div style={{ fontSize:12, color:"#94a3b8" }}>{l.city}</div>
+                    <div className="font-serif text-base font-semibold tracking-tight text-foreground">{l.name}</div>
+                    <div className="text-xs text-muted-foreground">{l.city}</div>
                   </div>
                 </div>
                 <StatusBadge status={l.type} />
               </div>
-              <div style={{ fontSize:13, color:"#64748b", display:"flex", flexDirection:"column", gap:4, marginBottom:14 }}>
+
+              <div className="mb-4 flex flex-col gap-1 text-sm text-muted-foreground">
                 <div>📞 {l.phone}</div>
                 <div>🕐 {l.timezone}</div>
-                <div>📋 ID: <code style={{fontSize:11,background:"#f1f5f9",padding:"1px 6px",borderRadius:4}}>{l.id.slice(0,8)}…</code></div>
+                <div>📋 ID: <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">{l.id.slice(0,8)}…</code></div>
               </div>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                <span style={{ fontSize:11, background:l.is_active?"#f0fdf4":"#f1f5f9", color:l.is_active?"#15803d":"#94a3b8", padding:"3px 10px", borderRadius:20, fontWeight:600 }}>
+
+              <div className="mb-4 flex items-center justify-between">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${l.is_active ? "bg-emerald-50 text-emerald-700" : "bg-secondary text-muted-foreground"}`}>
                   {l.is_active ? "Active" : "Inactive"}
                 </span>
-                {l.is_active && <button onClick={() => deactivate(l.id)} style={{ fontSize:11, padding:"4px 10px", borderRadius:7, border:"1px solid #fca5a5", background:"#fef2f2", color:"#b91c1c", cursor:"pointer" }}>Deactivate</button>}
+                {l.is_active && (
+                  <Button variant="destructive" size="sm" onClick={() => deactivate(l.id)}>Deactivate</Button>
+                )}
               </div>
-            </div>
+
+              <div>
+                <Label className="mb-1.5 block text-xs font-semibold text-foreground">Portal Access Code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={codeEdits[l.id] ?? l.access_code ?? ""}
+                    onChange={e => setCodeEdits({...codeEdits, [l.id]: e.target.value})}
+                    placeholder="Set a code for location staff"
+                    className="h-9 text-xs"
+                  />
+                  <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => saveAccessCode(l.id)}>Save</Button>
+                </div>
+              </div>
+            </Card>
           ))}
         </div>
       )}
+
       {showAdd && (
         <Modal title="Add Location" onClose={() => setShowAdd(false)}>
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={labelStyle}>Business Name *</label><input value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Chennai Fitness Hub" style={inputStyle} /></div>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label style={labelStyle}>Type *</label>
-                <select value={form.type} onChange={e => setForm({...form,type:e.target.value})} style={inputStyle}>
+                <Label className="mb-1.5 block text-sm font-medium text-foreground">Business Name *</Label>
+                <Input value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Chennai Fitness Hub" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium text-foreground">Type *</Label>
+                <select value={form.type} onChange={e => setForm({...form,type:e.target.value})} className={selectClass}>
                   <option value="gym">🏋️ Gym</option>
                   <option value="salon">💇 Salon</option>
                   <option value="restaurant">🍽️ Restaurant</option>
                 </select>
               </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={labelStyle}>City *</label><input value={form.city} onChange={e => setForm({...form,city:e.target.value})} placeholder="Chennai" style={inputStyle} /></div>
-              <div><label style={labelStyle}>Phone *</label><input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+919876543210" style={inputStyle} /></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium text-foreground">City *</Label>
+                <Input value={form.city} onChange={e => setForm({...form,city:e.target.value})} placeholder="Chennai" />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</Label>
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+919876543210" />
+              </div>
             </div>
             <div>
-              <label style={labelStyle}>Timezone</label>
-              <select value={form.timezone} onChange={e => setForm({...form,timezone:e.target.value})} style={inputStyle}>
+              <Label className="mb-1.5 block text-sm font-medium text-foreground">Timezone</Label>
+              <select value={form.timezone} onChange={e => setForm({...form,timezone:e.target.value})} className={selectClass}>
                 <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
                 <option value="Asia/Chennai">Asia/Chennai</option>
               </select>
             </div>
-            <button onClick={addLocation} disabled={submitting || !form.name || !form.city || !form.phone} style={{ ...gradientBtnStyle, opacity:submitting?0.7:1 }}>
+            <div>
+              <Label className="mb-1.5 block text-sm font-medium text-foreground">Portal Access Code (optional)</Label>
+              <Input value={form.access_code} onChange={e => setForm({...form,access_code:e.target.value})} placeholder="Lets this location's staff log into a scoped portal" />
+            </div>
+            <Button onClick={addLocation} disabled={submitting || !form.name || !form.city || !form.phone} className="w-full">
               {submitting ? "Adding…" : "Add Location"}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = { display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:6 };
-const inputStyle: React.CSSProperties = { width:"100%", padding:"10px 12px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none", boxSizing:"border-box" as const };
-const gradientBtnStyle: React.CSSProperties = { padding:"11px 20px", borderRadius:10, border:"none", background:"linear-gradient(90deg,#f472b6,#a78bfa,#60a5fa)", color:"white", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", boxShadow:"0 4px 16px rgba(167,139,250,0.35)" };

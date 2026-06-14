@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from typing import Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from app.core.database import get_db
@@ -12,6 +12,7 @@ from app.models.call_log import CallLog, CallOutcome
 from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAStatus
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.lead import Lead, LeadStatus
+from app.models.customer import Customer
 from app.schemas.analytics import (
     CallStats, WhatsAppStats, AppointmentStats, LeadStats, OverviewStats
 )
@@ -201,3 +202,81 @@ def get_lead_stats(
     _=Depends(_get_current_user),
 ):
     return _get_lead_stats(db, location_id, start_date, end_date)
+
+
+@router.get("/activity")
+def get_activity(
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    soon_cutoff = now + timedelta(hours=2)
+
+    upcoming_appts = (
+        db.query(Appointment)
+        .filter(
+            Appointment.scheduled_at >= now,
+            Appointment.scheduled_at <= soon_cutoff,
+            Appointment.reminder_sent == False,
+            Appointment.status == AppointmentStatus.scheduled,
+        )
+        .order_by(Appointment.scheduled_at)
+        .limit(10)
+        .all()
+    )
+    customer_ids = {a.customer_id for a in upcoming_appts}
+    customers = {
+        c.id: c for c in db.query(Customer).filter(Customer.id.in_(customer_ids)).all()
+    } if customer_ids else {}
+
+    upcoming_tasks = [
+        {
+            "type": "reminder_call",
+            "title": f"Call {customers.get(a.customer_id).full_name if customers.get(a.customer_id) else 'customer'} — {a.service} reminder",
+            "scheduled_at": a.scheduled_at.isoformat(),
+        }
+        for a in upcoming_appts
+    ]
+
+    recent_calls = (
+        db.query(CallLog)
+        .order_by(CallLog.called_at.desc())
+        .limit(10)
+        .all()
+    )
+    recent_calls_out = [
+        {
+            "id": str(c.id),
+            "phone": c.phone,
+            "purpose": c.purpose.value,
+            "outcome": c.outcome.value if c.outcome else None,
+            "summary": c.summary,
+            "called_at": c.called_at.isoformat() if c.called_at else None,
+        }
+        for c in recent_calls
+    ]
+
+    recent_messages = (
+        db.query(WhatsAppMessage)
+        .filter(WhatsAppMessage.direction == WADirection.outbound)
+        .order_by(WhatsAppMessage.sent_at.desc())
+        .limit(10)
+        .all()
+    )
+    recent_messages_out = [
+        {
+            "id": str(m.id),
+            "phone": m.phone,
+            "template_name": m.template_name,
+            "body": m.body,
+            "status": m.status.value,
+            "sent_at": m.sent_at.isoformat() if m.sent_at else None,
+        }
+        for m in recent_messages
+    ]
+
+    return {
+        "upcoming_tasks": upcoming_tasks,
+        "recent_calls": recent_calls_out,
+        "recent_messages": recent_messages_out,
+    }

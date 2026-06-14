@@ -8,6 +8,7 @@ from app.models.suppression import SuppressionList
 from app.models.lead import Lead, LeadStatus
 from app.models.lead_sequence_step import LeadSequenceStep, StepChannel, StepStatus
 from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAMessageType, WAStatus
+from app.models.location import Location
 from app.integrations.whatsapp import (
     send_template_message,
     send_booking_confirmation,
@@ -111,6 +112,9 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
         if not step or step.status != StepStatus.pending:
             return
 
+        location = db.query(Location).filter(Location.id == lead.location_id).first()
+        business_name = location.name if location else "our business"
+
         lang = lead.language.value
         templates = LEAD_SEQUENCE_TEMPLATES.get(step_number, {})
         template_name = templates.get(lang, templates.get("en", ""))
@@ -126,9 +130,25 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
                 language_code=language_from_code(lang),
                 components=[{
                     "type": "body",
-                    "parameters": [{"type": "text", "text": lead.full_name}],
+                    "parameters": [
+                        {"type": "text", "text": lead.full_name},
+                        {"type": "text", "text": business_name},
+                    ],
                 }],
             )
+
+            if result.get("status") in ("stub", "skipped"):
+                logger.info(f"WA step {step_number} skipped for lead {lead_id}: {result.get('reason', result.get('status'))}")
+                step.status = StepStatus.sent  # mark as sent so sequence continues
+                step.sent_at = datetime.now(timezone.utc)
+                db.commit()
+                if step_number < 4:
+                    delay_days = STEP_DELAYS_DAYS.get(step_number + 1, 2)
+                    send_lead_sequence_step.apply_async(
+                        kwargs={"lead_id": lead_id, "step_number": step_number + 1},
+                        countdown=delay_days * 86400,
+                    )
+                return
 
             wa_message_id = result.get("messages", [{}])[0].get("id", f"stub_{lead_id}_{step_number}")
             _save_outbound_message(

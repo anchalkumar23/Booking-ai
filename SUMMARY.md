@@ -1,12 +1,12 @@
-# What We Built — Plain English Summary
+# What is Built
 
 ---
 
 ## The Big Picture
 
-Your client runs gyms, salons, and restaurants across South India. Right now, staff spend hours every day calling customers to remind them of appointments, chasing people whose memberships are about to expire, and following up with new leads. Most of these calls go unanswered. A lot of leads never get contacted at all.
+Gethyn runs gyms, salons, and restaurants across South India. Right now, staff spend hours every day calling customers to remind them of appointments, chasing people whose memberships are about to expire, and following up with new leads. Most of these calls go unanswered. A lot of leads never get contacted at all.
 
-We built a system that does all of this automatically — 24 hours a day, 7 days a week — without any staff involvement. An AI speaks to customers in their own language (English, Hindi, or Tamil), books appointments, sends WhatsApp messages, and updates everything in a live dashboard that the business owner can see at any time.
+I built a system that does all of this automatically — 24 hours a day, 7 days a week — without any staff involvement. An AI speaks to customers in their own language (English, Hindi, or Tamil), books appointments, sends WhatsApp messages, and updates everything in a live dashboard that the business owner can see at any time.
 
 ---
 
@@ -87,13 +87,8 @@ Every appointment that is booked through the system automatically appears in the
 
 ## What's Still Needed Before Going Live
 
-1. **WhatsApp Business Verification** — Meta needs to verify your client's business. Once approved, all 15 message templates go live. Until then, WhatsApp messages are simulated (they show in logs but don't actually send).
+**WhatsApp Business Verification** — Meta needs to verify your client's business. Once approved, all 15 message templates go live. Until then, WhatsApp messages are simulated (they show in logs but don't actually send).
 
-2. **DND Registry Check** — Indian regulations require checking the national Do-Not-Disturb list before calling anyone. Right now, numbers can be manually flagged as DND. A direct API connection to the TRAI registry can be added later.
-
-3. **Membership Pages** — The database tracks memberships, but the dashboard page to view and edit them hasn't been built yet. This is the next feature to add.
-
-4. **Deployment** — The system is ready to go live on a Hostinger VPS server. This is the last step before it's accessible from anywhere on the internet.
 
 ---
 
@@ -117,4 +112,4 @@ Everything else is fully built and tested:
 
 ## In One Sentence
 
-We built a system that replaces hours of daily staff phone calls with an AI that speaks three languages, books appointments, follows up with leads, and sends WhatsApp messages — all automatically — while showing everything in a clean dashboard the owner can check from anywhere.
+I built a system that replaces hours of daily staff phone calls with an AI that speaks three languages, books appointments, follows up with leads, and sends WhatsApp messages — all automatically — while showing everything in a clean dashboard the owner can check from anywhere.

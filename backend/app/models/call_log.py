@@ -40,6 +40,7 @@ class CallLog(UUIDMixin, Base):
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_secs: Mapped[int | None] = mapped_column(Integer, nullable=True)
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     recording_url: Mapped[str | None] = mapped_column(String, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     called_at: Mapped[datetime] = mapped_column(

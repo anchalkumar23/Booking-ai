@@ -3,6 +3,10 @@ import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface Location { id: string; name: string; }
 interface StaffMember {
@@ -19,6 +23,8 @@ const DEFAULT_HOURS = {
   wed:{start:"09:00",end:"18:00"}, thu:{start:"09:00",end:"18:00"},
   fri:{start:"09:00",end:"18:00"}, sat:{start:"10:00",end:"15:00"}, sun:null,
 };
+
+const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -78,6 +84,15 @@ export default function StaffPage() {
     } catch { setToast({message:"Failed",type:"error"}); }
   }
 
+  async function deleteStaff(id: string, name: string) {
+    if (!confirm(`Delete staff member "${name}"? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/v1/staff/${id}`, { method:"DELETE" });
+      setToast({message:"Staff deleted",type:"success"});
+      fetchData();
+    } catch { setToast({message:"Failed to delete",type:"error"}); }
+  }
+
   const locationName = (id: string) => locations.find(l => l.id === id)?.name || "—";
 
   function hoursDisplay(wh: Record<string,any>) {
@@ -85,88 +100,117 @@ export default function StaffPage() {
   }
 
   return (
-    <div style={{ padding:32, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+    <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 }}>
+
+      <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:"#0f172a", marginBottom:4 }}>👤 Staff</h1>
-          <p style={{ fontSize:14, color:"#94a3b8" }}>Manage staff members and their working hours</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">👤 Staff</h1>
+          <p className="mt-2 text-muted-foreground">Manage staff members and their working hours</p>
         </div>
-        <button onClick={() => setShowAdd(true)} style={gradientBtnStyle}>+ Add Staff</button>
+        <Button onClick={() => setShowAdd(true)}>+ Add Staff</Button>
       </div>
-      <div style={{ display:"flex", gap:12, marginBottom:20 }}>
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={selectStyle}>
+
+      <div className="mb-5 flex gap-3">
+        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className={cn(selectClass, "sm:w-56")}>
           <option value="">All Locations</option>
           {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))", gap:16 }}>
-        {loading ? <div style={{ color:"#94a3b8" }}>Loading…</div> :
-        staff.length === 0 ? <div style={{ color:"#94a3b8" }}>No staff found.</div> :
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {loading ? <div className="text-muted-foreground">Loading…</div> :
+        staff.length === 0 ? <div className="text-muted-foreground">No staff found.</div> :
         staff.map(s => (
-          <div key={s.id} style={{ background:"white", borderRadius:16, padding:20, border:"1px solid #edf1f7", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <Card key={s.id} className="p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:15, color:"#0f172a" }}>{s.full_name}</div>
-                <div style={{ fontSize:12, color:"#94a3b8" }}>{locationName(s.location_id)} · {s.phone || "No phone"}</div>
+                <div className="font-serif text-base font-semibold text-foreground">{s.full_name}</div>
+                <div className="text-xs text-muted-foreground">{locationName(s.location_id)} · {s.phone || "No phone"}</div>
               </div>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:11, background:s.is_active?"#f0fdf4":"#f1f5f9", color:s.is_active?"#15803d":"#94a3b8", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "rounded-full px-2 py-0.5 text-xs font-semibold",
+                  s.is_active ? "bg-emerald-50 text-emerald-700" : "bg-secondary text-muted-foreground"
+                )}>
                   {s.is_active ? "Active" : "Inactive"}
                 </span>
-                {s.is_active && <button onClick={() => deactivate(s.id)} style={{ fontSize:11, padding:"3px 8px", borderRadius:7, border:"1px solid #fca5a5", background:"#fef2f2", color:"#b91c1c", cursor:"pointer" }}>Deactivate</button>}
+                {s.is_active && (
+                  <Button size="sm" variant="destructive" onClick={() => deactivate(s.id)}>Deactivate</Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => deleteStaff(s.id, s.full_name)}>Delete</Button>
               </div>
             </div>
-            <div style={{ fontSize:11, color:"#64748b", background:"#f8fafc", borderRadius:8, padding:"8px 10px", lineHeight:1.8 }}>
+            <div className="rounded-lg bg-secondary/60 px-3 py-2 text-xs leading-loose text-muted-foreground">
               {hoursDisplay(s.working_hours)}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
+
       {showAdd && (
         <Modal title="Add Staff Member" onClose={() => setShowAdd(false)} width={560}>
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div className="flex flex-col gap-4">
             <div>
-              <label style={labelStyle}>Location *</label>
-              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} style={inputStyle}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
+              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} className={selectClass}>
                 <option value="">Select location…</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={labelStyle}>Full Name *</label><input value={form.full_name} onChange={e => setForm({...form,full_name:e.target.value})} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Phone</label><input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} style={inputStyle} /></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
+                <Input value={form.full_name} onChange={e => setForm({...form,full_name:e.target.value})} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Phone</label>
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} />
+              </div>
             </div>
             <div>
-              <label style={labelStyle}>Working Hours — click day to toggle on/off</label>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Working Hours — click day to toggle on/off</label>
+              <div className="flex flex-col gap-2">
                 {DAYS.map(day => (
-                  <div key={day} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <button onClick={() => toggleDay(day)} style={{ width:48, padding:"5px 0", borderRadius:7, border:`1.5px solid ${form.working_hours[day]?"#a78bfa":"#e2e8f0"}`, background:form.working_hours[day]?"#f5f3ff":"#f8fafc", color:form.working_hours[day]?"#6d28d9":"#94a3b8", fontWeight:600, fontSize:11, cursor:"pointer" }}>
+                  <div key={day} className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => toggleDay(day)}
+                      className={cn(
+                        "w-12 shrink-0 rounded-lg border py-1.5 text-xs font-semibold",
+                        form.working_hours[day]
+                          ? "border-violet-300 bg-violet-50 text-violet-700"
+                          : "border-border bg-secondary/50 text-muted-foreground"
+                      )}
+                    >
                       {DAY_LABELS[day]}
                     </button>
                     {form.working_hours[day] ? (
                       <>
-                        <input type="time" value={form.working_hours[day].start} onChange={e => setForm({...form,working_hours:{...form.working_hours,[day]:{...form.working_hours[day],start:e.target.value}}})} style={{...inputStyle,width:120,padding:"6px 10px"}} />
-                        <span style={{color:"#94a3b8",fontSize:13}}>to</span>
-                        <input type="time" value={form.working_hours[day].end} onChange={e => setForm({...form,working_hours:{...form.working_hours,[day]:{...form.working_hours[day],end:e.target.value}}})} style={{...inputStyle,width:120,padding:"6px 10px"}} />
+                        <Input
+                          type="time"
+                          value={form.working_hours[day].start}
+                          onChange={e => setForm({...form,working_hours:{...form.working_hours,[day]:{...form.working_hours[day],start:e.target.value}}})}
+                          className="w-32"
+                        />
+                        <span className="text-sm text-muted-foreground">to</span>
+                        <Input
+                          type="time"
+                          value={form.working_hours[day].end}
+                          onChange={e => setForm({...form,working_hours:{...form.working_hours,[day]:{...form.working_hours[day],end:e.target.value}}})}
+                          className="w-32"
+                        />
                       </>
-                    ) : <span style={{fontSize:12,color:"#94a3b8"}}>Day off</span>}
+                    ) : <span className="text-sm text-muted-foreground">Day off</span>}
                   </div>
                 ))}
               </div>
             </div>
-            <button onClick={addStaff} disabled={submitting || !form.location_id || !form.full_name} style={{ ...gradientBtnStyle, opacity:submitting?0.7:1 }}>
+            <Button onClick={addStaff} disabled={submitting || !form.location_id || !form.full_name}>
               {submitting ? "Adding…" : "Add Staff Member"}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
     </div>
   );
 }
-
-const selectStyle: React.CSSProperties = { padding:"9px 14px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none" };
-const labelStyle: React.CSSProperties = { display:"block", fontSize:12, fontWeight:600, color:"#475569", marginBottom:6 };
-const inputStyle: React.CSSProperties = { width:"100%", padding:"10px 12px", border:"1.5px solid #e8edf5", borderRadius:10, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13, color:"#0f172a", background:"white", outline:"none", boxSizing:"border-box" as const };
-const gradientBtnStyle: React.CSSProperties = { padding:"11px 20px", borderRadius:10, border:"none", background:"linear-gradient(90deg,#f472b6,#a78bfa,#60a5fa)", color:"white", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, cursor:"pointer", boxShadow:"0 4px 16px rgba(167,139,250,0.35)" };

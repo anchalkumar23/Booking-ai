@@ -54,6 +54,13 @@ def send_template_message(
                 f"WhatsApp API error {resp.status_code} for {phone}: {resp.text} "
                 f"(phone_number_id={settings.whatsapp_phone_number_id})"
             )
+            # 132001 = template does not exist — no point retrying, skip gracefully
+            try:
+                err_code = resp.json().get("error", {}).get("code")
+            except Exception:
+                err_code = None
+            if err_code == 132001:
+                return {"status": "skipped", "reason": "template_not_found", "phone": phone}
             resp.raise_for_status()
         return resp.json()
 

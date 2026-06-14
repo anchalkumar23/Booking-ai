@@ -11,6 +11,7 @@ class LocationCreate(BaseModel):
     city: str
     phone: str
     timezone: str = "Asia/Kolkata"
+    access_code: Optional[str] = None
 
 
 class LocationUpdate(BaseModel):
@@ -20,6 +21,7 @@ class LocationUpdate(BaseModel):
     phone: Optional[str] = None
     timezone: Optional[str] = None
     is_active: Optional[bool] = None
+    access_code: Optional[str] = None
 
 
 class LocationOut(BaseModel):
@@ -31,4 +33,5 @@ class LocationOut(BaseModel):
     phone: str
     timezone: str
     is_active: bool
+    access_code: Optional[str] = None
     created_at: datetime
