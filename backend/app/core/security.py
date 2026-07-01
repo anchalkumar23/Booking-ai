@@ -90,3 +90,24 @@ def is_locked_out(ip: str) -> bool:
 
 def clear_failed_attempts(ip: str) -> None:
     get_redis().delete(f"{LOCKOUT_PREFIX}{ip}")
+
+
+PASSWORD_RESET_PREFIX = "password_reset:"
+PASSWORD_RESET_TTL_SECONDS = 86400  # 24 hours
+
+
+def create_password_reset_token(email: str) -> str:
+    import secrets
+    token = secrets.token_urlsafe(32)
+    get_redis().setex(f"{PASSWORD_RESET_PREFIX}{token}", PASSWORD_RESET_TTL_SECONDS, email)
+    return token
+
+
+def consume_password_reset_token(token: str) -> Optional[str]:
+    r = get_redis()
+    key = f"{PASSWORD_RESET_PREFIX}{token}"
+    email = r.get(key)
+    if not email:
+        return None
+    r.delete(key)
+    return email

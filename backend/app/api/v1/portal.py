@@ -8,17 +8,17 @@ from app.models.location import Location
 from app.models.appointment import Appointment
 from app.models.customer import Customer
 from app.models.lead import Lead
-from app.models.call_log import CallLog
+from app.core.security import verify_password
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
 
-def _verify_location_access(db: Session, location_id: uuid.UUID, code: str) -> Location:
+def _verify_location_access(db: Session, location_id: uuid.UUID, password: str) -> Location:
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
-    if not location.access_code or location.access_code != code:
-        raise HTTPException(status_code=401, detail={"message": "Invalid access code.", "code": "invalid_code"})
+    if not location.password_hash or not verify_password(password, location.password_hash):
+        raise HTTPException(status_code=401, detail={"message": "Invalid location password.", "code": "invalid_password"})
     return location
 
 
@@ -31,10 +31,10 @@ def portal_locations(db: Session = Depends(get_db)):
 @router.post("/login")
 def portal_login(
     location_id: uuid.UUID,
-    access_code: str,
+    password: str,
     db: Session = Depends(get_db),
 ):
-    location = _verify_location_access(db, location_id, access_code)
+    location = _verify_location_access(db, location_id, password)
     return {
         "id": str(location.id),
         "name": location.name,
@@ -46,10 +46,10 @@ def portal_login(
 @router.get("/overview")
 def portal_overview(
     location_id: uuid.UUID = Query(...),
-    code: str = Query(...),
+    password: str = Query(...),
     db: Session = Depends(get_db),
 ):
-    location = _verify_location_access(db, location_id, code)
+    location = _verify_location_access(db, location_id, password)
 
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)

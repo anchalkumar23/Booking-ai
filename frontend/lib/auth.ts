@@ -13,6 +13,30 @@ export async function login(email: string, password: string): Promise<void> {
   });
 }
 
+export async function signup(
+  email: string,
+  password: string,
+  fullName: string,
+  inviteToken: string,
+): Promise<void> {
+  await apiFetch("/v1/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({
+      email,
+      password,
+      full_name: fullName,
+      invite_token: inviteToken,
+    }),
+  });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await apiFetch("/v1/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
 export async function logout(): Promise<void> {
   await apiFetch("/v1/auth/logout", { method: "POST" });
 }
@@ -33,3 +57,5 @@ export async function getMe(): Promise<MeResponse | null> {
     return null;
   }
 }
+
+export { HttpError };

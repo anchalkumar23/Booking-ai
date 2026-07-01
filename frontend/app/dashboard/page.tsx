@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { useActiveLocation } from "@/lib/location-context";
 import { PhoneCall, CalendarDays, Target, MessageCircle, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -64,18 +65,22 @@ function StatCard({ label, value, sub, meta, metaGood, icon: Icon, iconClass }: 
 }
 
 export default function DashboardPage() {
+  const { activeLocation } = useActiveLocation();
+  const locationId = activeLocation?.id ?? "";
   const [data, setData] = useState<Overview | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const fetchData = useCallback(async () => {
+    if (!locationId) return;
     setLoading(true);
     setError("");
     try {
+      const params = `?location_id=${locationId}`;
       const [result, act] = await Promise.all([
-        apiFetch<Overview>("/v1/analytics/overview"),
-        apiFetch<Activity>("/v1/analytics/activity"),
+        apiFetch<Overview>(`/v1/analytics/overview${params}`),
+        apiFetch<Activity>(`/v1/analytics/activity${params}`),
       ]);
       setData(result);
       setActivity(act);
@@ -84,7 +89,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [locationId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

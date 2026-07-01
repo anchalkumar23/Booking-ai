@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { useActiveLocation } from "@/lib/location-context";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface Location { id: string; name: string; }
 interface Customer {
   id: string; full_name: string; phone: string; email: string | null;
   language: string; is_dnd: boolean; is_suppressed: boolean;
@@ -14,40 +14,39 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const { activeLocation } = useActiveLocation();
+  const locationId = activeLocation?.id ?? "";
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{message:string;type:"error"|"success"}|null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterLocation, setFilterLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ location_id:"", full_name:"", phone:"", email:"", language:"en" });
+  const [form, setForm] = useState({ full_name:"", phone:"", email:"", language:"en" });
 
   const fetchData = useCallback(async () => {
+    if (!locationId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ location_id: locationId });
       if (search) params.set("search", search);
-      if (filterLocation) params.set("location_id", filterLocation);
-      const [c, l] = await Promise.all([
-        apiFetch<Customer[]>(`/v1/customers?${params}`),
-        apiFetch<Location[]>("/v1/locations"),
-      ]);
-      setCustomers(c); setLocations(l);
+      setCustomers(await apiFetch<Customer[]>(`/v1/customers?${params}`));
     } catch { setToast({message:"Failed to load",type:"error"}); }
     finally { setLoading(false); }
-  }, [search, filterLocation]);
+  }, [search, locationId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function addCustomer() {
     setSubmitting(true);
     try {
-      await apiFetch("/v1/customers", { method:"POST", body:JSON.stringify({ ...form, email: form.email || undefined }) });
+      await apiFetch("/v1/customers", {
+        method:"POST",
+        body:JSON.stringify({ ...form, location_id: locationId, email: form.email || undefined }),
+      });
       setToast({message:"Customer added",type:"success"});
       setShowAdd(false);
-      setForm({location_id:"",full_name:"",phone:"",email:"",language:"en"});
+      setForm({full_name:"",phone:"",email:"",language:"en"});
       fetchData();
     } catch (e: any) {
       setToast({message:e.detail?.message || "Failed",type:"error"});
@@ -63,25 +62,19 @@ export default function CustomersPage() {
     } catch { setToast({message:"Failed to delete",type:"error"}); }
   }
 
-  const locationName = (id: string) => locations.find(l => l.id === id)?.name || "—";
-
   return (
     <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">👥 Customers</h1>
-          <p className="mt-2 text-muted-foreground">{customers.length} customers total</p>
+          <p className="mt-2 text-muted-foreground">{customers.length} customers at {activeLocation?.name}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>+ Add Customer</Button>
       </header>
 
       <div className="mb-5 flex flex-wrap gap-3">
         <Input placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)} className="w-full sm:w-64" />
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-56">
-          <option value="">All Locations</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
         <Button variant="secondary" onClick={fetchData}>Refresh</Button>
       </div>
 
@@ -94,7 +87,7 @@ export default function CustomersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {["Name","Phone","Email","Language","Location","DND","Suppressed","Added",""].map(h => (
+                {["Name","Phone","Email","Language","DND","Suppressed","Added",""].map(h => (
                   <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -106,7 +99,6 @@ export default function CustomersPage() {
                   <td className="px-4 py-3">{c.phone}</td>
                   <td className="px-4 py-3">{c.email || "—"}</td>
                   <td className="px-4 py-3">{c.language.toUpperCase()}</td>
-                  <td className="px-4 py-3">{locationName(c.location_id)}</td>
                   <td className="px-4 py-3">{c.is_dnd ? <span className="font-semibold text-rose-500">Yes</span> : "No"}</td>
                   <td className="px-4 py-3">{c.is_suppressed ? <span className="font-semibold text-rose-500">Yes</span> : "No"}</td>
                   <td className="px-4 py-3">{new Date(c.created_at).toLocaleDateString("en-IN")}</td>
@@ -123,13 +115,6 @@ export default function CustomersPage() {
       {showAdd && (
         <Modal title="Add Customer" onClose={() => setShowAdd(false)}>
           <div className="flex flex-col gap-3.5">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
-              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
-                <option value="">Select location…</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
@@ -152,7 +137,7 @@ export default function CustomersPage() {
                 </select>
               </div>
             </div>
-            <Button onClick={addCustomer} disabled={submitting || !form.location_id || !form.full_name || !form.phone} className="w-full">
+            <Button onClick={addCustomer} disabled={submitting || !form.full_name || !form.phone} className="w-full">
               {submitting ? "Adding…" : "Add Customer"}
             </Button>
           </div>

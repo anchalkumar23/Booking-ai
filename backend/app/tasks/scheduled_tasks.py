@@ -8,6 +8,7 @@ from app.models.membership import Membership, PaymentStatus
 from app.models.customer import Customer
 from app.models.location import Location
 from app.models.staff import Staff
+from app.integrations.whatsapp import location_agent_variables
 
 logger = logging.getLogger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
@@ -44,9 +45,7 @@ def schedule_appointment_reminders():
             staff = db.query(Staff).filter(Staff.id == appt.staff_id).first() if appt.staff_id else None
 
             variables = {
-                "business_name": location.name if location else "the business",
-                "business_type": location.type.value if location else "business",
-                "city": location.city if location else "",
+                **location_agent_variables(location),
                 "customer_name": customer.full_name,
                 "service": appt.service,
                 "scheduled_at": appt.scheduled_at.astimezone(IST).strftime("%d %B %Y at %I:%M %p"),
@@ -103,9 +102,7 @@ def check_expiring_memberships():
                 ).first()
 
                 variables = {
-                    "business_name": location.name if location else "the business",
-                    "business_type": location.type.value if location else "business",
-                    "city": location.city if location else "",
+                    **location_agent_variables(location),
                     "customer_name": customer.full_name,
                     "tier": membership.tier,
                     "expires_at": membership.expires_at.strftime("%d %B %Y"),

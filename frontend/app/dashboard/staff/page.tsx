@@ -6,6 +6,7 @@ import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { useActiveLocation } from "@/lib/location-context";
 import { cn } from "@/lib/utils";
 
 interface Location { id: string; name: string; }
@@ -27,28 +28,23 @@ const DEFAULT_HOURS = {
 const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function StaffPage() {
+  const { activeLocation } = useActiveLocation();
+  const locationId = activeLocation?.id ?? "";
   const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{message:string;type:"error"|"success"}|null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [filterLocation, setFilterLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ location_id:"", full_name:"", phone:"", working_hours: DEFAULT_HOURS as any });
+  const [form, setForm] = useState({ full_name:"", phone:"", working_hours: DEFAULT_HOURS as any });
 
   const fetchData = useCallback(async () => {
+    if (!locationId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterLocation) params.set("location_id", filterLocation);
-      const [s, l] = await Promise.all([
-        apiFetch<StaffMember[]>(`/v1/staff?${params}`),
-        apiFetch<Location[]>("/v1/locations"),
-      ]);
-      setStaff(s); setLocations(l);
+      setStaff(await apiFetch<StaffMember[]>(`/v1/staff?location_id=${locationId}`));
     } catch { setToast({message:"Failed to load",type:"error"}); }
     finally { setLoading(false); }
-  }, [filterLocation]);
+  }, [locationId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -61,14 +57,14 @@ export default function StaffPage() {
     setSubmitting(true);
     try {
       await apiFetch("/v1/staff", { method:"POST", body:JSON.stringify({
-        location_id: form.location_id,
+        location_id: locationId,
         full_name: form.full_name,
         phone: form.phone || undefined,
         working_hours: form.working_hours,
       })});
       setToast({message:"Staff member added",type:"success"});
       setShowAdd(false);
-      setForm({location_id:"",full_name:"",phone:"",working_hours:DEFAULT_HOURS});
+      setForm({full_name:"",phone:"",working_hours:DEFAULT_HOURS});
       fetchData();
     } catch (e: any) {
       setToast({message:e.detail?.message || "Failed",type:"error"});
@@ -93,8 +89,6 @@ export default function StaffPage() {
     } catch { setToast({message:"Failed to delete",type:"error"}); }
   }
 
-  const locationName = (id: string) => locations.find(l => l.id === id)?.name || "—";
-
   function hoursDisplay(wh: Record<string,any>) {
     return DAYS.filter(d => wh[d]).map(d => `${DAY_LABELS[d]} ${wh[d].start}-${wh[d].end}`).join(" · ") || "No hours set";
   }
@@ -106,16 +100,9 @@ export default function StaffPage() {
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">👤 Staff</h1>
-          <p className="mt-2 text-muted-foreground">Manage staff members and their working hours</p>
+          <p className="mt-2 text-muted-foreground">Staff at {activeLocation?.name}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>+ Add Staff</Button>
-      </div>
-
-      <div className="mb-5 flex gap-3">
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className={cn(selectClass, "sm:w-56")}>
-          <option value="">All Locations</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -126,7 +113,7 @@ export default function StaffPage() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <div className="font-serif text-base font-semibold text-foreground">{s.full_name}</div>
-                <div className="text-xs text-muted-foreground">{locationName(s.location_id)} · {s.phone || "No phone"}</div>
+                <div className="text-xs text-muted-foreground">{s.phone || "No phone"}</div>
               </div>
               <div className="flex items-center gap-2">
                 <span className={cn(
@@ -151,13 +138,6 @@ export default function StaffPage() {
       {showAdd && (
         <Modal title="Add Staff Member" onClose={() => setShowAdd(false)} width={560}>
           <div className="flex flex-col gap-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
-              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} className={selectClass}>
-                <option value="">Select location…</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
@@ -205,7 +185,7 @@ export default function StaffPage() {
                 ))}
               </div>
             </div>
-            <Button onClick={addStaff} disabled={submitting || !form.location_id || !form.full_name}>
+            <Button onClick={addStaff} disabled={submitting || !form.full_name}>
               {submitting ? "Adding…" : "Add Staff Member"}
             </Button>
           </div>

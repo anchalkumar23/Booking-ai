@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { useActiveLocation } from "@/lib/location-context";
 
 interface Location { id: string; name: string; }
 interface Customer { id: string; full_name: string; phone: string; location_id: string; }
@@ -39,13 +40,13 @@ function formatDate(dateStr: string): string {
 }
 
 export default function MembershipsPage() {
+  const { activeLocation } = useActiveLocation();
+  const locationId = activeLocation?.id ?? "";
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
-  const [filterLocation, setFilterLocation] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterExpiring, setFilterExpiring] = useState("");
 
@@ -55,41 +56,35 @@ export default function MembershipsPage() {
 
   const today = new Date().toISOString().split("T")[0];
   const [addForm, setAddForm] = useState({
-    customer_id: "", location_id: "", tier: "", starts_at: today, expires_at: "", payment_status: "pending",
+    customer_id: "", tier: "", starts_at: today, expires_at: "", payment_status: "pending",
   });
   const [editForm, setEditForm] = useState({
     tier: "", starts_at: "", expires_at: "", payment_status: "pending", renewal_call_sent: false,
   });
 
   const fetchData = useCallback(async () => {
+    if (!locationId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterLocation) params.set("location_id", filterLocation);
+      const params = new URLSearchParams({ location_id: locationId });
       if (filterStatus) params.set("payment_status", filterStatus);
       if (filterExpiring) params.set("expiring_days", filterExpiring);
-      const [ms, locs] = await Promise.all([
-        apiFetch<Membership[]>(`/v1/memberships?${params}`),
-        apiFetch<Location[]>("/v1/locations"),
-      ]);
-      setMemberships(ms);
-      setLocations(locs);
+      setMemberships(await apiFetch<Membership[]>(`/v1/memberships?${params}`));
     } catch {
       setToast({ message: "Failed to load memberships", type: "error" });
     } finally {
       setLoading(false);
     }
-  }, [filterLocation, filterStatus, filterExpiring]);
+  }, [locationId, filterStatus, filterExpiring]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Load customers when location changes in add form
   useEffect(() => {
-    if (!addForm.location_id) { setCustomers([]); return; }
-    apiFetch<Customer[]>(`/v1/customers?location_id=${addForm.location_id}`)
+    if (!locationId) { setCustomers([]); return; }
+    apiFetch<Customer[]>(`/v1/customers?location_id=${locationId}`)
       .then(setCustomers)
       .catch(() => setCustomers([]));
-  }, [addForm.location_id]);
+  }, [locationId]);
 
   // Stats
   const total = memberships.length;
@@ -98,16 +93,16 @@ export default function MembershipsPage() {
   const paidCount = memberships.filter(m => m.payment_status === "paid").length;
 
   async function addMembership() {
-    if (!addForm.customer_id || !addForm.location_id || !addForm.tier || !addForm.expires_at) {
+    if (!addForm.customer_id || !addForm.tier || !addForm.expires_at) {
       setToast({ message: "Please fill all required fields", type: "error" });
       return;
     }
     setSubmitting(true);
     try {
-      await apiFetch("/v1/memberships", { method: "POST", body: JSON.stringify(addForm) });
+      await apiFetch("/v1/memberships", { method: "POST", body: JSON.stringify({ ...addForm, location_id: locationId }) });
       setToast({ message: "Membership added", type: "success" });
       setShowAdd(false);
-      setAddForm({ customer_id: "", location_id: "", tier: "", starts_at: today, expires_at: "", payment_status: "pending" });
+      setAddForm({ customer_id: "", tier: "", starts_at: today, expires_at: "", payment_status: "pending" });
       fetchData();
     } catch (e: any) {
       setToast({ message: e.detail?.message || "Failed to add membership", type: "error" });
@@ -197,10 +192,6 @@ export default function MembershipsPage() {
 
       {/* Filters */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className={`${selectClass} sm:w-auto`}>
-          <option value="">All Locations</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`${selectClass} sm:w-auto`}>
           <option value="">All Statuses</option>
           {PAYMENT_STATUSES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
@@ -292,17 +283,9 @@ export default function MembershipsPage() {
         <Modal title="Add Membership" onClose={() => setShowAdd(false)}>
           <div className="flex flex-col gap-3.5">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
-              <select value={addForm.location_id} onChange={e => setAddForm(f => ({ ...f, location_id: e.target.value, customer_id: "" }))} className={selectClass}>
-                <option value="">Select location…</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-
-            <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Customer *</label>
-              <select value={addForm.customer_id} onChange={e => setAddForm(f => ({ ...f, customer_id: e.target.value }))} className={selectClass} disabled={!addForm.location_id}>
-                <option value="">{addForm.location_id ? "Select customer…" : "Select location first"}</option>
+              <select value={addForm.customer_id} onChange={e => setAddForm(f => ({ ...f, customer_id: e.target.value }))} className={selectClass}>
+                <option value="">Select customer…</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} — {c.phone}</option>)}
               </select>
             </div>

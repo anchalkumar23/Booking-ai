@@ -14,8 +14,10 @@ import {
   LogOut,
   Menu,
   X,
+  ArrowLeftRight,
 } from "lucide-react";
 import { logout } from "@/lib/auth";
+import { useActiveLocation } from "@/lib/location-context";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -29,8 +31,11 @@ const NAV = [
   { href: "/dashboard/locations", icon: MapPin, label: "Locations" },
 ];
 
+const TYPE_ICONS: Record<string, string> = { gym: "🏋️", salon: "💇", restaurant: "🍽️" };
+
 function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const router = useRouter();
+  const { activeLocation, switchLocation } = useActiveLocation();
 
   async function handleLogout() {
     await logout();
@@ -49,7 +54,27 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-2 overflow-y-auto">
+      {activeLocation && (
+        <div className="mx-3 mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base">{TYPE_ICONS[activeLocation.type] || "🏢"}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold">{activeLocation.name}</p>
+              <p className="truncate text-[10px] text-white/50">{activeLocation.city}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={switchLocation}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/10 px-2 py-1.5 text-[10px] font-medium text-white/70 hover:bg-white/15 hover:text-white"
+          >
+            <ArrowLeftRight className="h-3 w-3" />
+            Switch location
+          </button>
+        </div>
+      )}
+
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {NAV.map(({ href, icon: Icon, label }) => {
           const active = href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
           return (
@@ -90,12 +115,10 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar */}
       <div className="sticky top-0 hidden h-screen lg:block">
         <SidebarContent pathname={pathname} />
       </div>
 
-      {/* Mobile top bar */}
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-emerald-400 text-slate-900">
@@ -113,7 +136,6 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />

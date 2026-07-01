@@ -36,5 +36,17 @@ class Settings(BaseSettings):
 
     sentry_dsn: str = ""
 
+    # SaaS onboarding
+    signup_invite_secret: str = ""
+    frontend_url: str = "http://localhost:3000"
+
+    # Meta WhatsApp Embedded Signup (optional — for Connect WhatsApp button)
+    meta_app_id: str = ""
+    meta_embedded_signup_config_id: str = ""
+
+    # AI WhatsApp assistant — answers inbound chats and books appointments via tool-calling
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+
 
 settings = Settings()

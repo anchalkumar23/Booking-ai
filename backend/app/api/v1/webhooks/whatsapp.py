@@ -7,7 +7,9 @@ from app.integrations.whatsapp import is_opt_out
 from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAMessageType, WAStatus
 from app.models.customer import Customer
 from app.models.lead import Lead, LeadStatus
+from app.models.location import Location
 from app.models.suppression import SuppressionList, SuppressionReason, SuppressionSource
+from app.tasks.whatsapp_tasks import generate_and_send_ai_reply
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks/whatsapp", tags=["webhooks"])
@@ -25,6 +27,18 @@ def _suppress_contact(db: Session, phone: str) -> None:
     if customer:
         customer.is_suppressed = True
     db.commit()
+
+
+def _resolve_location(db: Session, value: dict) -> Location | None:
+    """Identify which business location this webhook event belongs to (multi-location SaaS)."""
+    phone_number_id = value.get("metadata", {}).get("phone_number_id")
+    if phone_number_id:
+        location = db.query(Location).filter(Location.whatsapp_phone_number_id == phone_number_id).first()
+        if location:
+            return location
+    if settings.default_location_id:
+        return db.query(Location).filter(Location.id == settings.default_location_id).first()
+    return None
 
 
 def _save_inbound_message(db: Session, phone: str, text: str, wa_message_id: str) -> None:
@@ -71,6 +85,8 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
             _handle_status_updates(db, value["statuses"])
             return {"status": "ok"}
 
+        location = _resolve_location(db, value)
+
         messages = value.get("messages", [])
         for msg in messages:
             phone = msg["from"]
@@ -97,6 +113,11 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
 
             # Stop lead WA sequence if they replied
             _handle_lead_reply(db, phone)
+
+            # Let the AI assistant answer free-form within the 24h customer service window —
+            # no template needed since the customer messaged us first.
+            if location and text:
+                generate_and_send_ai_reply.delay(phone=phone, location_id=str(location.id))
 
     except (KeyError, IndexError) as e:
         logger.warning(f"WhatsApp webhook parse error: {e} — payload: {payload}")

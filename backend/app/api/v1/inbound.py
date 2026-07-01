@@ -172,6 +172,7 @@ def book_appointment_inbound(
             service=body.service,
             scheduled_at=scheduled_at.astimezone(IST).strftime("%d %B %Y at %I:%M %p IST"),
             language=language.value,
+            location_id=str(location_id),
         )
 
         return {

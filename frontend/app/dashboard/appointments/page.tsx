@@ -6,6 +6,7 @@ import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useActiveLocation } from "@/lib/location-context";
 
 interface Location { id: string; name: string; }
 interface Customer { id: string; full_name: string; phone: string; }
@@ -23,53 +24,51 @@ const SERVICES = ["Gym Session", "Personal Training", "Yoga", "Haircut", "Facial
 const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function AppointmentsPage() {
+  const { activeLocation } = useActiveLocation();
+  const locationId = activeLocation?.id ?? "";
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{message:string;type:"error"|"success"}|null>(null);
   const [showBook, setShowBook] = useState(false);
-  const [filterLocation, setFilterLocation] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [form, setForm] = useState({ customer_id:"", location_id:"", service:"Gym Session", date:"", slot:"", duration_mins:60 });
+  const [form, setForm] = useState({ customer_id:"", service:"Gym Session", date:"", slot:"", duration_mins:60 });
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (!locationId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterLocation) params.set("location_id", filterLocation);
+      const params = new URLSearchParams({ location_id: locationId });
       if (filterDate) params.set("date", new Date(filterDate).toISOString());
       if (filterStatus) params.set("status", filterStatus);
-      const [appts, locs, custs] = await Promise.all([
+      const [appts, custs] = await Promise.all([
         apiFetch<Appointment[]>(`/v1/appointments?${params}`),
-        apiFetch<Location[]>("/v1/locations"),
-        apiFetch<Customer[]>("/v1/customers"),
+        apiFetch<Customer[]>(`/v1/customers?location_id=${locationId}`),
       ]);
       setAppointments(appts);
-      setLocations(locs);
       setCustomers(custs);
     } catch { setToast({message:"Failed to load data",type:"error"}); }
     finally { setLoading(false); }
-  }, [filterLocation, filterDate, filterStatus]);
+  }, [locationId, filterDate, filterStatus]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function fetchSlots() {
-    if (!form.location_id || !form.date) return;
+    if (!locationId || !form.date) return;
     setLoadingSlots(true);
     try {
       const date = new Date(form.date).toISOString();
-      const data = await apiFetch<Slot[]>(`/v1/appointments/slots?location_id=${form.location_id}&date=${date}&duration_mins=${form.duration_mins}`);
+      const data = await apiFetch<Slot[]>(`/v1/appointments/slots?location_id=${locationId}&date=${date}&duration_mins=${form.duration_mins}`);
       setSlots(data);
     } catch { setToast({message:"Could not fetch slots",type:"error"}); }
     finally { setLoadingSlots(false); }
   }
 
-  useEffect(() => { if (form.location_id && form.date) fetchSlots(); }, [form.location_id, form.date, form.duration_mins]);
+  useEffect(() => { if (locationId && form.date) fetchSlots(); }, [locationId, form.date, form.duration_mins]);
 
   async function bookAppointment() {
     if (!form.customer_id || !form.slot) return;
@@ -79,7 +78,7 @@ export default function AppointmentsPage() {
         method: "POST",
         body: JSON.stringify({
           customer_id: form.customer_id,
-          location_id: form.location_id,
+          location_id: locationId,
           service: form.service,
           scheduled_at: form.slot,
           duration_mins: form.duration_mins,
@@ -88,7 +87,7 @@ export default function AppointmentsPage() {
       });
       setToast({message:"Appointment booked successfully",type:"success"});
       setShowBook(false);
-      setForm({customer_id:"",location_id:"",service:"Gym Session",date:"",slot:"",duration_mins:60});
+      setForm({customer_id:"",service:"Gym Session",date:"",slot:"",duration_mins:60});
       fetchData();
     } catch (e: any) {
       setToast({message: e.detail?.message || "Booking failed",type:"error"});
@@ -107,9 +106,6 @@ export default function AppointmentsPage() {
   function customerName(id: string) {
     return customers.find(c => c.id === id)?.full_name || "—";
   }
-  function locationName(id: string) {
-    return locations.find(l => l.id === id)?.name || "—";
-  }
 
   return (
     <div className="px-5 py-8 sm:px-8 lg:px-10">
@@ -118,17 +114,13 @@ export default function AppointmentsPage() {
       <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📅 Appointments</h1>
-          <p className="mt-2 text-muted-foreground">Book, manage and track all appointments</p>
+          <p className="mt-2 text-muted-foreground">Appointments at {activeLocation?.name}</p>
         </div>
         <Button onClick={() => setShowBook(true)}>+ Book Appointment</Button>
       </div>
 
       {/* Filters */}
       <div className="mb-6 flex flex-wrap gap-3">
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className={`${selectClass} sm:w-auto`}>
-          <option value="">All Locations</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
         <Input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="sm:w-auto" />
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={`${selectClass} sm:w-auto`}>
           <option value="">All Statuses</option>
@@ -147,7 +139,7 @@ export default function AppointmentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {["Customer","Location","Service","Date & Time","Duration","Status","Booked Via","Actions"].map(h => (
+                {["Customer","Service","Date & Time","Duration","Status","Booked Via","Actions"].map(h => (
                   <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -156,7 +148,6 @@ export default function AppointmentsPage() {
               {appointments.map(a => (
                 <tr key={a.id} className="border-b border-border/60 last:border-0">
                   <td className="px-4 py-3 font-semibold text-foreground">{customerName(a.customer_id)}</td>
-                  <td className="px-4 py-3">{locationName(a.location_id)}</td>
                   <td className="px-4 py-3">{a.service}</td>
                   <td className="px-4 py-3">{new Date(a.scheduled_at).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",dateStyle:"medium",timeStyle:"short"})}</td>
                   <td className="px-4 py-3">{a.duration_mins} min</td>
@@ -186,13 +177,6 @@ export default function AppointmentsPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Location</label>
-              <select value={form.location_id} onChange={e => setForm({...form, location_id:e.target.value, slot:""})} className={selectClass}>
-                <option value="">Select location…</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Service</label>
               <select value={form.service} onChange={e => setForm({...form, service:e.target.value})} className={selectClass}>
                 {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -218,7 +202,7 @@ export default function AppointmentsPage() {
                 <option value="">Select a slot…</option>
                 {slots.map(s => <option key={s.datetime} value={s.datetime}>{s.time} ({s.available_staff} staff free)</option>)}
               </select>
-              {form.location_id && form.date && slots.length === 0 && !loadingSlots && (
+              {locationId && form.date && slots.length === 0 && !loadingSlots && (
                 <p className="mt-1 text-xs text-rose-500">No slots available on this date.</p>
               )}
             </div>

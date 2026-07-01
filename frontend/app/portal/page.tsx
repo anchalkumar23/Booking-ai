@@ -26,7 +26,7 @@ const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent p
 export default function PortalPage() {
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [locationId, setLocationId] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,7 +40,7 @@ export default function PortalPage() {
     setError("");
     setLoading(true);
     try {
-      const params = new URLSearchParams({ location_id: locationId, code });
+      const params = new URLSearchParams({ location_id: locationId, password });
       const data = await apiFetch<Overview>(`/v1/portal/overview?${params}`);
       setOverview(data);
     } catch (err) {
@@ -56,7 +56,7 @@ export default function PortalPage() {
       <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
         <Card className="w-full max-w-md p-8">
           <h1 className="font-serif text-3xl tracking-tight text-foreground">📍 Location Portal</h1>
-          <p className="mt-2 text-muted-foreground">Sign in with your location&apos;s access code to view today&apos;s tasks and calls.</p>
+          <p className="mt-2 text-muted-foreground">Sign in with your location password to view today&apos;s tasks and calls.</p>
 
           <form onSubmit={handleLogin} className="mt-8 space-y-5">
             <div className="space-y-2">
@@ -70,15 +70,15 @@ export default function PortalPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="code" className="text-sm font-semibold text-foreground">Access Code</Label>
-              <Input id="code" type="password" value={code} onChange={e => setCode(e.target.value)} required placeholder="Enter your location's code" className="h-12 rounded-xl" />
+              <Label htmlFor="password" className="text-sm font-semibold text-foreground">Location Password</Label>
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter location password" className="h-12 rounded-xl" />
             </div>
 
             {error && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>
             )}
 
-            <Button type="submit" disabled={loading || !locationId || !code} className="h-12 w-full rounded-xl text-sm font-semibold">
+            <Button type="submit" disabled={loading || !locationId || !password} className="h-12 w-full rounded-xl text-sm font-semibold">
               {loading ? "Signing in…" : "View Dashboard"}
             </Button>
           </form>

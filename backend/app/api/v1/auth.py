@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from jose import JWTError
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -12,8 +13,10 @@ from app.core.security import (
     is_locked_out,
     clear_failed_attempts,
     LOCKOUT_MAX_ATTEMPTS,
+    hash_password,
+    consume_password_reset_token,
 )
-from app.schemas.auth import LoginRequest, MeResponse
+from app.schemas.auth import LoginRequest, MeResponse, SignupRequest, ResetPasswordRequest
 from app.services.auth import authenticate_user
 from app.models.user import User
 
@@ -81,6 +84,53 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
     return {"message": "Logged in successfully"}
 
 
+@router.post("/signup", status_code=201)
+def signup(body: SignupRequest, db: Session = Depends(get_db)):
+    if not settings.signup_invite_secret:
+        raise HTTPException(
+            status_code=403,
+            detail={"message": "Sign up is not enabled.", "code": "signup_disabled"},
+        )
+    if body.invite_token != settings.signup_invite_secret:
+        raise HTTPException(
+            status_code=403,
+            detail={"message": "Invalid invite link.", "code": "invalid_invite"},
+        )
+    existing = db.query(User).filter(User.email == body.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "An account with this email already exists.", "code": "email_exists"},
+        )
+    user = User(
+        email=body.email,
+        hashed_password=hash_password(body.password),
+        full_name=body.full_name,
+    )
+    db.add(user)
+    db.commit()
+    return {"message": "Account created. You can sign in now."}
+
+
+@router.post("/reset-password")
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    email = consume_password_reset_token(body.token)
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "This reset link is invalid or has expired.", "code": "invalid_token"},
+        )
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail={"message": "User not found.", "code": "not_found"},
+        )
+    user.hashed_password = hash_password(body.password)
+    db.commit()
+    return {"message": "Password updated. You can sign in now."}
+
+
 @router.post("/refresh")
 def refresh(request: Request, response: Response):
     token = request.cookies.get(REFRESH_COOKIE)
@@ -108,6 +158,7 @@ def logout(response: Response, request: Request):
     if token:
         revoke_refresh_token(token)
     _clear_auth_cookies(response)
+    response.delete_cookie("active_location_id")
     return {"message": "Logged out"}
 
 

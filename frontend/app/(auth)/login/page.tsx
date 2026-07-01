@@ -38,7 +38,7 @@ function LoginForm() {
     setLoading(true);
     try {
       await login(email, password);
-      router.push("/dashboard");
+      router.push("/select-location");
     } catch (err) {
       if (err instanceof HttpError) {
         setToast({ message: err.detail.message, type: "error" });
@@ -150,6 +150,9 @@ function LoginForm() {
                 <Label htmlFor="password" className="text-sm font-semibold text-foreground">
                   Password
                 </Label>
+                <span className="text-xs text-muted-foreground">
+                  Forgot password? Ask your admin for a reset link.
+                </span>
               </div>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />

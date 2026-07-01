@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 import uuid
 from datetime import datetime
@@ -11,7 +11,8 @@ class LocationCreate(BaseModel):
     city: str
     phone: str
     timezone: str = "Asia/Kolkata"
-    access_code: Optional[str] = None
+    password: str = Field(min_length=4, max_length=128)
+    knowledge_base: Optional[str] = None
 
 
 class LocationUpdate(BaseModel):
@@ -21,7 +22,8 @@ class LocationUpdate(BaseModel):
     phone: Optional[str] = None
     timezone: Optional[str] = None
     is_active: Optional[bool] = None
-    access_code: Optional[str] = None
+    password: Optional[str] = Field(default=None, min_length=4, max_length=128)
+    knowledge_base: Optional[str] = None
 
 
 class LocationOut(BaseModel):
@@ -33,5 +35,27 @@ class LocationOut(BaseModel):
     phone: str
     timezone: str
     is_active: bool
-    access_code: Optional[str] = None
+    has_password: bool = False
+    knowledge_base: Optional[str] = None
+    whatsapp_connected: bool = False
+    whatsapp_display_phone: Optional[str] = None
     created_at: datetime
+
+
+class LocationSelectRequest(BaseModel):
+    location_id: uuid.UUID
+    password: str
+
+
+class WhatsAppConnectRequest(BaseModel):
+    phone_number_id: str
+    waba_id: str
+    access_token: str
+    display_phone: Optional[str] = None
+
+
+class WhatsAppStatusOut(BaseModel):
+    connected: bool
+    display_phone: Optional[str] = None
+    phone_number_id: Optional[str] = None
+    waba_id: Optional[str] = None

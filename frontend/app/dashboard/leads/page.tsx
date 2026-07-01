@@ -6,6 +6,7 @@ import { Modal } from "@/components/Modal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useActiveLocation } from "@/lib/location-context";
 
 interface Location { id: string; name: string; }
 interface Lead {
@@ -26,46 +27,41 @@ const PIPELINE_BORDER_COLORS: Record<string,string> = {
 };
 
 export default function LeadsPage() {
+  const { activeLocation } = useActiveLocation();
+  const locationId = activeLocation?.id ?? "";
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{message:string;type:"error"|"success"}|null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
-  const [filterLocation, setFilterLocation] = useState("");
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ location_id:"", full_name:"", phone:"", language:"en", source:"manual" });
+  const [form, setForm] = useState({ full_name:"", phone:"", language:"en", source:"manual" });
 
   const fetchData = useCallback(async () => {
+    if (!locationId) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ location_id: locationId });
       if (filterStatus) params.set("status", filterStatus);
-      if (filterLocation) params.set("location_id", filterLocation);
       if (search) params.set("search", search);
-      const [ls, locs] = await Promise.all([
-        apiFetch<Lead[]>(`/v1/leads?${params}`),
-        apiFetch<Location[]>("/v1/locations"),
-      ]);
-      setLeads(ls);
-      setLocations(locs);
+      setLeads(await apiFetch<Lead[]>(`/v1/leads?${params}`));
     } catch { setToast({message:"Failed to load leads",type:"error"}); }
     finally { setLoading(false); }
-  }, [filterStatus, filterLocation, search]);
+  }, [filterStatus, locationId, search]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function addLead() {
-    if (!form.location_id || !form.full_name || !form.phone) return;
+    if (!form.full_name || !form.phone) return;
     setSubmitting(true);
     try {
-      await apiFetch("/v1/leads", { method:"POST", body:JSON.stringify(form) });
+      await apiFetch("/v1/leads", { method:"POST", body:JSON.stringify({ ...form, location_id: locationId }) });
       setToast({message:"Lead added — outreach started",type:"success"});
       setShowAdd(false);
-      setForm({location_id:"",full_name:"",phone:"",language:"en",source:"manual"});
+      setForm({full_name:"",phone:"",language:"en",source:"manual"});
       fetchData();
     } catch (e: any) {
       setToast({message:e.detail?.message || "Failed to add lead",type:"error"});
@@ -74,15 +70,15 @@ export default function LeadsPage() {
 
   async function importCSV(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !filterLocation) {
-      setToast({message:"Select a location filter first, then import CSV",type:"error"});
+    if (!file || !locationId) {
+      setToast({message:"No active location",type:"error"});
       return;
     }
     setImporting(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/leads/import?location_id=${filterLocation}`, {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/leads/import?location_id=${locationId}`, {
         method:"POST", body: formData, credentials:"include",
       });
       const result = await resp.json();
@@ -125,8 +121,6 @@ export default function LeadsPage() {
     } catch { setToast({message:"Failed",type:"error"}); }
   }
 
-  const locationName = (id: string) => locations.find(l => l.id === id)?.name || "—";
-
   // Pipeline summary
   const summary = STATUSES.reduce((acc, s) => ({ ...acc, [s]: leads.filter(l => l.status === s).length }), {} as Record<string,number>);
 
@@ -138,7 +132,7 @@ export default function LeadsPage() {
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">🎯 Leads</h1>
-          <p className="mt-2 text-muted-foreground">Manage lead outreach across calls and WhatsApp</p>
+          <p className="mt-2 text-muted-foreground">Leads at {activeLocation?.name}</p>
         </div>
         <div className="flex gap-2.5">
           <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
@@ -168,16 +162,11 @@ export default function LeadsPage() {
       {/* Filters */}
       <div className="mb-5 flex flex-wrap gap-3">
         <Input placeholder="Search name or phone…" value={search} onChange={e => setSearch(e.target.value)} className="w-full sm:w-64" />
-        <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:w-56">
-          <option value="">All Locations</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
         <Button variant="secondary" onClick={fetchData}>Refresh</Button>
       </div>
 
-      {/* CSV tip */}
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        💡 <b>CSV Import:</b> Select a location first, then click &quot;Import CSV&quot;. Format: <code>full_name,phone,language,source</code>
+        💡 <b>CSV Import:</b> Click &quot;Import CSV&quot;. Format: <code>full_name,phone,language,source</code>
       </div>
 
       {/* Table */}
@@ -199,8 +188,7 @@ export default function LeadsPage() {
               {leads.map((l) => (
                 <tr key={l.id} className="border-b border-border/60 last:border-0">
                   <td className="px-4 py-3">
-                    <span className="font-semibold text-foreground">{l.full_name}</span><br/>
-                    <span className="text-xs text-muted-foreground">{locationName(l.location_id)}</span>
+                    <span className="font-semibold text-foreground">{l.full_name}</span>
                   </td>
                   <td className="px-4 py-3">{l.phone}</td>
                   <td className="px-4 py-3">{l.language.toUpperCase()}</td>
@@ -241,13 +229,6 @@ export default function LeadsPage() {
       {showAdd && (
         <Modal title="Add New Lead" onClose={() => setShowAdd(false)}>
           <div className="flex flex-col gap-3.5">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Location *</label>
-              <select value={form.location_id} onChange={e => setForm({...form,location_id:e.target.value})} className="h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40">
-                <option value="">Select location…</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
@@ -275,7 +256,7 @@ export default function LeadsPage() {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-700">
               ✅ Adding this lead will <b>automatically start</b> the 4-step WhatsApp sequence and a Bolna cold call.
             </div>
-            <Button onClick={addLead} disabled={submitting || !form.location_id || !form.full_name || !form.phone} className="w-full">
+            <Button onClick={addLead} disabled={submitting || !form.full_name || !form.phone} className="w-full">
               {submitting ? "Adding…" : "Add Lead & Start Outreach"}
             </Button>
           </div>

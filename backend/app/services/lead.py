@@ -68,10 +68,10 @@ def _trigger_outreach(lead: Lead, location: Location) -> None:
     from app.tasks.bolna_tasks import send_lead_call
     from app.core.config import settings
 
+    from app.integrations.whatsapp import location_agent_variables
+
     variables = {
-        "business_name": location.name,
-        "business_type": location.type.value,
-        "city": location.city,
+        **location_agent_variables(location),
         "lead_name": lead.full_name,
         "customer_name": lead.full_name,
         "language": lead.language.value,

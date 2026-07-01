@@ -1,5 +1,6 @@
 import logging
 import httpx
+from typing import Optional
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -11,9 +12,32 @@ OPT_OUT_KEYWORDS = [
 ]
 
 
-def _headers() -> dict:
+class WhatsAppCredentials:
+    def __init__(self, phone_number_id: str, access_token: str):
+        self.phone_number_id = phone_number_id
+        self.access_token = access_token
+
+
+def _resolve_credentials(
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+) -> Optional[WhatsAppCredentials]:
+    pid = phone_number_id or settings.whatsapp_phone_number_id
+    token = access_token or settings.whatsapp_access_token
+    if pid and token:
+        return WhatsAppCredentials(pid, token)
+    return None
+
+
+def credentials_from_location(location) -> Optional[WhatsAppCredentials]:
+    if location and location.whatsapp_phone_number_id and location.whatsapp_access_token:
+        return WhatsAppCredentials(location.whatsapp_phone_number_id, location.whatsapp_access_token)
+    return _resolve_credentials()
+
+
+def _headers(access_token: str) -> dict:
     return {
-        "Authorization": f"Bearer {settings.whatsapp_access_token}",
+        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
 
@@ -28,9 +52,12 @@ def send_template_message(
     template_name: str,
     language_code: str,
     components: list = None,
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
 ) -> dict:
     """Send a Meta-approved template message (used for first contact)."""
-    if not settings.whatsapp_access_token or not settings.whatsapp_phone_number_id:
+    creds = _resolve_credentials(phone_number_id, access_token)
+    if not creds:
         return _stub_response("send_template", phone)
 
     payload = {
@@ -45,16 +72,15 @@ def send_template_message(
     }
     with httpx.Client(timeout=15) as client:
         resp = client.post(
-            f"{GRAPH_URL}/{settings.whatsapp_phone_number_id}/messages",
-            headers=_headers(),
+            f"{GRAPH_URL}/{creds.phone_number_id}/messages",
+            headers=_headers(creds.access_token),
             json=payload,
         )
         if not resp.is_success:
             logger.error(
                 f"WhatsApp API error {resp.status_code} for {phone}: {resp.text} "
-                f"(phone_number_id={settings.whatsapp_phone_number_id})"
+                f"(phone_number_id={creds.phone_number_id})"
             )
-            # 132001 = template does not exist — no point retrying, skip gracefully
             try:
                 err_code = resp.json().get("error", {}).get("code")
             except Exception:
@@ -65,9 +91,15 @@ def send_template_message(
         return resp.json()
 
 
-def send_text_message(phone: str, text: str) -> dict:
+def send_text_message(
+    phone: str,
+    text: str,
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+) -> dict:
     """Send a free-form session message (only within 24h of customer reply)."""
-    if not settings.whatsapp_access_token or not settings.whatsapp_phone_number_id:
+    creds = _resolve_credentials(phone_number_id, access_token)
+    if not creds:
         return _stub_response("send_text", phone)
 
     payload = {
@@ -78,20 +110,28 @@ def send_text_message(phone: str, text: str) -> dict:
     }
     with httpx.Client(timeout=15) as client:
         resp = client.post(
-            f"{GRAPH_URL}/{settings.whatsapp_phone_number_id}/messages",
-            headers=_headers(),
+            f"{GRAPH_URL}/{creds.phone_number_id}/messages",
+            headers=_headers(creds.access_token),
             json=payload,
         )
         if not resp.is_success:
             logger.error(
                 f"WhatsApp API error {resp.status_code} for {phone}: {resp.text} "
-                f"(phone_number_id={settings.whatsapp_phone_number_id})"
+                f"(phone_number_id={creds.phone_number_id})"
             )
             resp.raise_for_status()
         return resp.json()
 
 
-def send_booking_confirmation(phone: str, customer_name: str, service: str, scheduled_at: str, language: str) -> dict:
+def send_booking_confirmation(
+    phone: str,
+    customer_name: str,
+    service: str,
+    scheduled_at: str,
+    language: str,
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+) -> dict:
     """Send appointment confirmation via approved template."""
     lang_map = {"en": "en", "hi": "hi", "ta": "ta_IN"}
     template_map = {"en": "booking_confirmation_en", "hi": "booking_confirmation_hi", "ta": "booking_confirmation_ta"}
@@ -108,6 +148,8 @@ def send_booking_confirmation(phone: str, customer_name: str, service: str, sche
                 {"type": "text", "text": scheduled_at},
             ],
         }],
+        phone_number_id=phone_number_id,
+        access_token=access_token,
     )
 
 
@@ -120,3 +162,16 @@ def is_opt_out(message_text: str) -> bool:
 def language_from_code(lang: str) -> str:
     """Map language enum to WhatsApp language code."""
     return {"en": "en", "hi": "hi", "ta": "ta_IN"}.get(lang, "en")
+
+
+def location_agent_variables(location) -> dict:
+    """Variables passed to Bolna agents — include per-location knowledge base."""
+    if not location:
+        return {"knowledge_base": "", "location_id": ""}
+    return {
+        "business_name": location.name,
+        "business_type": location.type.value,
+        "city": location.city,
+        "knowledge_base": location.knowledge_base or "",
+        "location_id": str(location.id),
+    }

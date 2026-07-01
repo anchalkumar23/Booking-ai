@@ -12,8 +12,11 @@ from app.models.location import Location
 from app.integrations.whatsapp import (
     send_template_message,
     send_booking_confirmation,
+    send_text_message,
     language_from_code,
+    credentials_from_location,
 )
+from app.services.whatsapp_assistant import generate_reply
 
 logger = logging.getLogger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
@@ -62,11 +65,22 @@ def send_booking_confirmation_task(
     service: str,
     scheduled_at: str,
     language: str,
+    location_id: str | None = None,
 ):
     """Send booking confirmation WhatsApp message after appointment is booked."""
     if _is_suppressed(phone):
         logger.info(f"Skipping WA confirmation to suppressed number: {phone}")
         return {"status": "suppressed"}
+    wa_pid, wa_token = None, None
+    if location_id:
+        db = SessionLocal()
+        try:
+            loc = db.query(Location).filter(Location.id == location_id).first()
+            creds = credentials_from_location(loc)
+            if creds:
+                wa_pid, wa_token = creds.phone_number_id, creds.access_token
+        finally:
+            db.close()
     try:
         result = send_booking_confirmation(
             phone=phone,
@@ -74,6 +88,8 @@ def send_booking_confirmation_task(
             service=service,
             scheduled_at=scheduled_at,
             language=language,
+            phone_number_id=wa_pid,
+            access_token=wa_token,
         )
         logger.info(f"Booking confirmation sent to {phone}: {result}")
         return result
@@ -114,6 +130,10 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
 
         location = db.query(Location).filter(Location.id == lead.location_id).first()
         business_name = location.name if location else "our business"
+        wa_pid, wa_token = None, None
+        creds = credentials_from_location(location)
+        if creds:
+            wa_pid, wa_token = creds.phone_number_id, creds.access_token
 
         lang = lead.language.value
         templates = LEAD_SEQUENCE_TEMPLATES.get(step_number, {})
@@ -135,6 +155,8 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
                         {"type": "text", "text": business_name},
                     ],
                 }],
+                phone_number_id=wa_pid,
+                access_token=wa_token,
             )
 
             if result.get("status") in ("stub", "skipped"):
@@ -212,5 +234,50 @@ def start_lead_sequence(lead_id: str):
         send_lead_sequence_step.delay(lead_id=lead_id, step_number=1)
         logger.info(f"Lead WA sequence started for lead {lead_id}")
 
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.whatsapp_tasks.generate_and_send_ai_reply", bind=True, max_retries=2)
+def generate_and_send_ai_reply(self, phone: str, location_id: str):
+    """Generate an LLM reply to an inbound WhatsApp message and send it as a free-form session message.
+
+    Only valid within the 24h customer service window opened by the customer's own message —
+    no Meta template is needed here. Outbound first-contact/reminder messages still go through
+    send_template_message/send_booking_confirmation elsewhere.
+    """
+    if _is_suppressed(phone):
+        logger.info(f"Skipping AI reply to suppressed number: {phone}")
+        return {"status": "suppressed"}
+
+    db = SessionLocal()
+    try:
+        location = db.query(Location).filter(Location.id == location_id).first()
+        if not location:
+            logger.warning(f"AI reply skipped — location {location_id} not found")
+            return {"status": "no_location"}
+
+        reply_text = generate_reply(db, phone, location)
+
+        creds = credentials_from_location(location)
+        wa_pid = creds.phone_number_id if creds else None
+        wa_token = creds.access_token if creds else None
+
+        result = send_text_message(phone=phone, text=reply_text, phone_number_id=wa_pid, access_token=wa_token)
+
+        wa_message_id = result.get("messages", [{}])[0].get("id", f"stub_ai_{phone}_{int(datetime.now(timezone.utc).timestamp())}")
+        db.add(WhatsAppMessage(
+            wa_message_id=wa_message_id,
+            phone=phone,
+            direction=WADirection.outbound,
+            message_type=WAMessageType.session,
+            body=reply_text,
+            status=WAStatus.sent,
+        ))
+        db.commit()
+        return {"status": "replied", "wa_message_id": wa_message_id}
+    except Exception as exc:
+        logger.error(f"AI reply generation failed for {phone}: {exc}")
+        raise self.retry(exc=exc, countdown=30)
     finally:
         db.close()
