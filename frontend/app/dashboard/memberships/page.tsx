@@ -203,7 +203,7 @@ export default function MembershipsPage() {
           <option value="7">Expiring This Week</option>
           <option value="30">Expiring This Month</option>
         </select>
-        <Button variant="outline" onClick={() => { setFilterLocation(""); setFilterStatus(""); setFilterExpiring(""); }}>
+        <Button variant="outline" onClick={() => { setFilterStatus(""); setFilterExpiring(""); }}>
           Reset
         </Button>
       </div>
