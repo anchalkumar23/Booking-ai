@@ -46,10 +46,10 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
     <div className="flex h-full w-64 shrink-0 flex-col bg-gradient-to-b from-[oklch(0.22_0.03_265)] via-[oklch(0.16_0.02_265)] to-[oklch(0.12_0.04_280)] text-white">
       <div className="flex items-center gap-3 px-5 py-6">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-400 to-emerald-400 text-slate-900">
-          <span className="font-serif text-lg font-bold leading-none">B</span>
+          <span className="font-serif text-lg font-bold leading-none">D</span>
         </div>
         <div className="leading-tight">
-          <p className="text-sm font-semibold">Booking AI</p>
+          <p className="text-sm font-semibold">Dusk AI</p>
           <p className="text-xs text-white/50">Admin Dashboard</p>
         </div>
       </div>
@@ -122,9 +122,9 @@ export function Sidebar() {
       <div className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-emerald-400 text-slate-900">
-            <span className="font-serif text-sm font-bold leading-none">B</span>
+            <span className="font-serif text-sm font-bold leading-none">D</span>
           </div>
-          <span className="text-sm font-semibold text-foreground">Booking AI</span>
+          <span className="text-sm font-semibold text-foreground">Dusk AI</span>
         </div>
         <button
           type="button"

@@ -70,10 +70,10 @@ function LoginForm() {
         <div className="relative flex flex-1 flex-col justify-center px-10 py-12 xl:px-16">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <span className="font-serif text-lg font-semibold leading-none">B</span>
+              <span className="font-serif text-lg font-semibold leading-none">D</span>
             </div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold text-foreground">Booking AI</p>
+              <p className="text-sm font-semibold text-foreground">Dusk AI</p>
               <p className="text-xs text-muted-foreground">Automation Platform</p>
             </div>
           </div>
@@ -112,10 +112,10 @@ function LoginForm() {
         <div className="mx-auto w-full max-w-md">
           <div className="mb-10 flex items-center gap-3 lg:hidden">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <span className="font-serif text-lg font-semibold leading-none">B</span>
+              <span className="font-serif text-lg font-semibold leading-none">D</span>
             </div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold text-foreground">Booking AI</p>
+              <p className="text-sm font-semibold text-foreground">Dusk AI</p>
               <p className="text-xs text-muted-foreground">Automation Platform</p>
             </div>
           </div>
@@ -137,7 +137,7 @@ function LoginForm() {
                   type="email"
                   required
                   autoComplete="email"
-                  placeholder="admin@bookingai.com"
+                  placeholder="admin@duskai.net"
                   className="h-12 rounded-xl pl-10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -200,7 +200,7 @@ function LoginForm() {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Secured with 256-bit encryption · Booking AI © 2026
+            Secured with 256-bit encryption · Dusk AI © 2026
           </p>
         </div>
       </section>

@@ -53,7 +53,7 @@ function SignupForm() {
 
       <div className="w-full max-w-md">
         <h1 className="font-serif text-3xl tracking-tight text-foreground">Create your account</h1>
-        <p className="mt-2 text-muted-foreground">You&apos;ve been invited to Booking AI. Set up your account to get started.</p>
+        <p className="mt-2 text-muted-foreground">You&apos;ve been invited to Dusk AI. Set up your account to get started.</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div className="space-y-2">
