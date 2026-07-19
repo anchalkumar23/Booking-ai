@@ -127,7 +127,7 @@ export default function LeadsPage() {
   return (
     <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <input ref={fileRef} type="file" accept=".csv" onChange={importCSV} className="hidden" />
+      <input ref={fileRef} type="file" accept=".csv,.xlsx" onChange={importCSV} className="hidden" />
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -136,7 +136,7 @@ export default function LeadsPage() {
         </div>
         <div className="flex gap-2.5">
           <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
-            {importing ? "Importing…" : "⬆ Import CSV"}
+            {importing ? "Importing…" : "⬆ Import CSV / Excel"}
           </Button>
           <Button onClick={() => setShowAdd(true)}>+ Add Lead</Button>
         </div>
@@ -166,7 +166,7 @@ export default function LeadsPage() {
       </div>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        💡 <b>CSV Import:</b> Click &quot;Import CSV&quot;. Format: <code>full_name,phone,language,source</code>
+        💡 <b>CSV / Excel Import:</b> Columns needed: <code>full_name</code>, <code>phone</code> (with +91), optional: <code>language</code> (en/hi/ta), <code>source</code>. Bulk calls are staggered 1 min apart automatically.
       </div>
 
       {/* Table */}

@@ -62,12 +62,12 @@ def create_lead_and_trigger_outreach(
     return lead
 
 
-def _trigger_outreach(lead: Lead, location: Location) -> None:
-    """Fire WhatsApp sequence and Bolna cold call in parallel."""
+def _trigger_outreach(lead: Lead, location: Location, call_delay: int = 30) -> None:
+    """Fire WhatsApp sequence and Bolna cold call.
+    call_delay: seconds before the Bolna call fires (default 30s so WA lands first;
+    bulk imports increase this per-lead to stagger calls)."""
     from app.tasks.whatsapp_tasks import start_lead_sequence
     from app.tasks.bolna_tasks import send_lead_call
-    from app.core.config import settings
-
     from app.integrations.whatsapp import location_agent_variables
 
     variables = {
@@ -81,16 +81,16 @@ def _trigger_outreach(lead: Lead, location: Location) -> None:
     # Start WhatsApp 4-step sequence
     start_lead_sequence.delay(lead_id=str(lead.id))
 
-    # Bolna cold call (with 30s delay so WA message lands first)
+    # Bolna cold call
     send_lead_call.apply_async(
         kwargs={
             "lead_id": str(lead.id),
             "phone": lead.phone,
             "variables": variables,
         },
-        countdown=30,
+        countdown=call_delay,
     )
-    logger.info(f"Outreach triggered for lead {lead.id} ({lead.phone})")
+    logger.info(f"Outreach triggered for lead {lead.id} ({lead.phone}), call in {call_delay}s")
 
 
 def bulk_create_leads(
@@ -106,6 +106,9 @@ def bulk_create_leads(
     created = 0
     skipped = 0
     errors = []
+
+    # Stagger calls: 30s base + 60s per lead so 100 leads spread over ~100 minutes
+    CALL_STAGGER_SECS = 60
 
     for row in rows:
         phone = row.get("phone", "").strip()
@@ -141,7 +144,8 @@ def bulk_create_leads(
         )
         db.add(lead)
         db.flush()  # get the ID without full commit
-        _trigger_outreach(lead, location)
+        call_delay = 30 + (created * CALL_STAGGER_SECS)
+        _trigger_outreach(lead, location, call_delay=call_delay)
         created += 1
 
     db.commit()

@@ -113,104 +113,123 @@ def build():
     # Overview
     h1(pdf, "What This Is For")
     body(pdf,
-         "To send and receive WhatsApp messages automatically through your BookingAI dashboard "
+         "To send and receive WhatsApp messages automatically through your Dusk AI dashboard "
          "(appointment confirmations, reminders, and an AI assistant that can chat with your "
          "customers), your WhatsApp Business number needs to be connected to Meta's WhatsApp "
          "Business Cloud API.")
     body(pdf,
-         "Your developer has already created the Meta app. What remains is connecting your real "
-         "business phone number and generating the credentials. This guide walks through exactly "
-         "what you will see in the Meta dashboard - each step matches the screens in front of you.")
+         "Your developer has already created the Meta app and your phone number is registered. "
+         "This guide walks through exactly what you will see inside 'Step 2. Production setup' "
+         "in the Meta App Dashboard - each step matches the screens in front of you.")
     body(pdf, "By the end you will have 4 pieces of information to paste into the 'Connect "
-              "WhatsApp' form in your BookingAI dashboard:")
+              "WhatsApp' form in your Dusk AI dashboard:")
     bullet(pdf, "Phone Number ID")
     bullet(pdf, "WhatsApp Business Account ID (WABA ID)")
     bullet(pdf, "Permanent Access Token")
-    bullet(pdf, "Display phone number (optional)")
+    bullet(pdf, "Display phone number (e.g. +91 96262 53222)")
     note(pdf, "If any of these steps feel too technical, your developer can complete all of this "
               "for you on a screen-share call. See 'Need Help?' at the end of this guide.")
 
-    # Step 1 - Production Setup
-    h1(pdf, "Step 1: Open Production Setup in the Meta Dashboard")
+    # Step 1 - Open Production Setup
+    h1(pdf, "Step 1: Open Step 2. Production Setup")
     body(pdf,
-         "Go to developers.facebook.com/apps and open the BookingAI app (your developer will "
-         "share access with you, or they may do this step themselves).")
+         "Go to developers.facebook.com/apps and open the app (your developer will give you "
+         "access, or they may do this step themselves).")
     body(pdf,
-         "In the left sidebar under WhatsApp, you will see three steps listed: "
-         "'Step 1. Try it out', 'Step 2. Production setup', and 'Step 3. Business verification'. "
-         "Step 1 (Try it out) uses a test number that cannot message real customers - skip it. "
-         "Click 'Step 2. Production setup' or click 'Continue' at the bottom of the page.")
+         "In the left sidebar under WhatsApp, click 'Step 2. Production setup'. "
+         "You will see four sections on this page: Configure Webhooks, Register your "
+         "WhatsApp phone number, Add payment method, and Test your registered number. "
+         "Complete them in order from top to bottom.")
     note(pdf,
          "The app may still show 'App Mode: Development' at the top. You will switch it to "
-         "Live in Step 4 of this guide. Do not worry about it for now.")
+         "Live in Step 6 of this guide. Do not worry about it for now.")
 
-    # Step 2 - Add phone number
-    h1(pdf, "Step 2: Add Your Real Business Phone Number")
+    # Step 2 - Configure Webhooks
+    h1(pdf, "Step 2: Configure Webhooks")
     body(pdf,
-         "Inside 'Step 2. Production setup' you will see a section to add a phone number. "
-         "This is where you register the number your customers will message.")
-    step(pdf, 1, "Click 'Add phone number'")
-    step(pdf, 2, "Enter a display name for your business (e.g. 'Slam Fitness Washermenpet') "
-                 "- this is what customers will see in WhatsApp")
-    step(pdf, 3, "Select your business category")
-    step(pdf, 4, "Enter your business phone number in international format (e.g. +91 96262 53222)")
-    step(pdf, 5, "Choose verification method: Text message (SMS) or Phone call")
-    step(pdf, 6, "Enter the OTP code you receive on that number")
-    note(pdf,
-         "If you see an error saying the number is already registered to a WhatsApp account, "
-         "the number is active on the WhatsApp or WhatsApp Business app on a phone. "
-         "You have two options: (a) delete the WhatsApp account on that phone first via "
-         "Settings > Account > Delete my account, wait a few minutes, then try again - after "
-         "this the phone can no longer use WhatsApp; or (b) during the registration flow, "
-         "look for a 'Migrate from existing WhatsApp' option which moves the number without "
-         "deleting chat history.")
-
-    # Step 3 - Get IDs
-    h1(pdf, "Step 3: Copy Your Phone Number ID and WABA ID")
+         "This is the first section on the Production Setup page. Webhooks allow Meta to "
+         "send you incoming customer messages and delivery status updates in real time.")
+    step(pdf, 1, "In the 'Callback URL' field, enter exactly:")
+    body(pdf, "    https://duskai.net/api/v1/webhooks/whatsapp/verify")
+    step(pdf, 2, "In the 'Verify token' field, enter exactly:")
+    body(pdf, "    bookingai_2026_secret")
+    step(pdf, 3, "Click the blue 'Verify and save' button")
     body(pdf,
-         "After your number is verified, the Production Setup page will show your credentials. "
-         "You need two IDs from this page.")
-    step(pdf, 1, "Look for a field labeled 'Phone number ID' - it is a long number. Copy it "
-                 "and save it in a notes app.")
-    step(pdf, 2, "Look for a field labeled 'WhatsApp Business Account ID' (sometimes shown as "
-                 "'WABA ID') - copy this too.")
+         "Meta will send a test request to your server to confirm it is reachable. "
+         "If verification succeeds the section will show a green checkmark.")
     note(pdf,
-         "These IDs are specific to your real number, not the test number. Make sure the "
-         "number shown on the page matches your business phone number before copying.")
+         "If verification fails, it usually means the server is not running or the URL "
+         "was typed incorrectly. Double-check the URL has no extra spaces and uses https.")
 
-    # Step 4 - Permanent token
+    # Step 3 - Register / Verify phone number
+    h1(pdf, "Step 3: Verify Your Phone Number and Subscribe Webhooks")
+    body(pdf,
+         "Scroll down to the 'Register your WhatsApp phone number' section. You will see "
+         "your WhatsApp Business Accounts (WABAs) and the phone numbers under each one.")
+    h2(pdf, "3a. Note your IDs (you will need these later)")
+    body(pdf,
+         "Each WABA shows a 'WhatsApp Business Account ID' directly under its name. "
+         "Each phone number shows a 'Phone Number ID' underneath it. Write both down now.")
+    bullet(pdf, "WABA ID example: 1037846842049930  (shown under 'slam washermenpet')")
+    bullet(pdf, "Phone Number ID example: 1096844540188743  (shown under +91 96262 53222)")
+    h2(pdf, "3b. Verify unverified numbers")
+    body(pdf,
+         "If your number shows an orange 'unverified' badge and a 'Verify' button, "
+         "click 'Verify'. You will receive an OTP via SMS or call on that number - "
+         "enter it to complete verification. Numbers showing 'Registered' in green "
+         "are already done.")
+    note(pdf,
+         "If the number is still active on the WhatsApp or WhatsApp Business app on a "
+         "phone, verification will fail. Delete the WhatsApp account on that phone first "
+         "via WhatsApp Settings > Account > Delete my account, wait a few minutes, "
+         "then click Verify again. After deletion, that phone can no longer use WhatsApp.")
+    h2(pdf, "3c. Turn on Subscribe webhooks")
+    body(pdf,
+         "Next to each WABA name you will see a 'Subscribe webhooks' toggle. "
+         "Turn this ON for the WABA that contains your business phone number. "
+         "This connects incoming messages to your webhook URL from Step 2.")
+
+    # Step 4 - Generate permanent token
     h1(pdf, "Step 4: Generate a Permanent Access Token")
     body(pdf,
-         "The page shows a temporary token that expires after 24 hours. You need a permanent "
-         "one that never expires. This is generated through Meta Business Manager, not the "
-         "developer dashboard.")
-    step(pdf, 1, "Open a new tab and go to business.facebook.com")
-    step(pdf, 2, "Click the Settings icon (gear) for your Business Portfolio")
-    step(pdf, 3, "Go to Users > System Users in the left menu")
-    step(pdf, 4, "Click 'Add' to create a new system user. Name it anything (e.g. "
-                 "'WhatsApp API User') and set the role to 'Admin'. Click 'Create system user'.")
-    step(pdf, 5, "Click on the new system user, then click 'Add Assets'")
-    step(pdf, 6, "Under 'Apps', select the BookingAI app and enable 'Full control'")
-    step(pdf, 7, "Under 'WhatsApp accounts', select your WhatsApp Business Account and enable "
-                 "'Full control'. Click 'Save changes'.")
-    step(pdf, 8, "Back on the system user, click 'Generate new token'")
-    step(pdf, 9, "Select the BookingAI app from the dropdown")
-    step(pdf, 10, "Set token expiration to 'Never'")
-    step(pdf, 11, "Tick both permissions: 'whatsapp_business_messaging' and "
-                  "'whatsapp_business_management'")
-    step(pdf, 12, "Click 'Generate token' and copy it immediately")
+         "Scroll down to the 'Test your registered number' section. Inside it you will "
+         "see 'Step 1: Generate permanent token' with a button.")
+    step(pdf, 1, "Click the blue 'Generate permanent token' button")
+    step(pdf, 2, "A token will appear in the field next to the button - copy it immediately "
+                 "and save it somewhere safe (a notes app or password manager)")
     note(pdf,
-         "This token is shown only once. Copy it now and keep it somewhere safe. "
-         "If you lose it you will need to generate a new one. Treat it like a password - "
-         "never share it publicly or send it over email.")
-
-    # Step 5 - Privacy Policy + Go Live
-    h1(pdf, "Step 5: Add a Privacy Policy and Switch to Live Mode")
+         "This token is shown only once. If you close the page without copying it you "
+         "will need to generate a new one. Treat it like a password - never share it "
+         "publicly or send it over email.")
     body(pdf,
-         "Meta requires a published privacy policy URL before your app can send messages to "
-         "real customers. If you do not have one, your developer can provide the URL.")
-    step(pdf, 1, "In the Meta App Dashboard (developers.facebook.com/apps), go to "
-                 "'App settings' > 'Basic' in the left sidebar")
+         "Having trouble? If the button does not work, click the 'these steps' link at "
+         "the bottom of the section. This opens the older System Users path where you "
+         "create an Admin system user, add assets, and generate a never-expiring token "
+         "manually. Your developer can guide you through this if needed.")
+
+    # Step 5 - Payment
+    h1(pdf, "Step 5: Add a Payment Method")
+    body(pdf,
+         "Scroll back up to the 'Add payment to send business-initiated messages' section "
+         "on the same Production Setup page. You will see your WABAs listed with "
+         "an 'Add payment method' button next to each.")
+    step(pdf, 1, "Click 'Add payment method' next to your WABA")
+    step(pdf, 2, "Add a credit or debit card and save")
+    body(pdf,
+         "Meta charges a small fee per outbound message - reminders, follow-ups, and "
+         "lead outreach sent before a customer messages you first. For India this is "
+         "typically less than one rupee per message.")
+    note(pdf,
+         "Replies sent within 24 hours of a customer messaging you are free (service "
+         "messages). Only messages your business sends first carry a fee. "
+         "You get 1,000 free service conversations per month.")
+
+    # Step 6 - Privacy Policy + Go Live
+    h1(pdf, "Step 6: Add a Privacy Policy and Switch to Live Mode")
+    body(pdf,
+         "Meta requires a published privacy policy URL before your app can send messages "
+         "to real customers. Your developer will provide this URL.")
+    step(pdf, 1, "In the Meta App Dashboard, go to 'App settings' > 'Basic' in the left sidebar")
     step(pdf, 2, "Find the 'Privacy Policy URL' field and paste your privacy policy web address")
     step(pdf, 3, "Scroll down and click 'Save changes'")
     step(pdf, 4, "At the very top of the App Dashboard, find the toggle that says "
@@ -219,30 +238,18 @@ def build():
          "Until the app is in Live mode, messages can only be sent to a small list of "
          "manually approved test numbers. Switch to Live before testing with real customers.")
 
-    # Step 6 - Payment
-    h1(pdf, "Step 6: Add a Payment Method")
-    body(pdf,
-         "Meta charges a small fee per outbound message (reminders, follow-ups sent to "
-         "customers before they message you). For India, this is typically less than "
-         "one rupee per message. Without a payment method, Meta will stop outbound "
-         "sending after the free trial period ends.")
-    step(pdf, 1, "Go to business.facebook.com")
-    step(pdf, 2, "In the left menu, go to WhatsApp Manager")
-    step(pdf, 3, "Look for 'Payment Configuration' or 'Billing' in the WhatsApp Manager menu")
-    step(pdf, 4, "Add a credit or debit card")
-    note(pdf,
-         "Replies sent within 24 hours of a customer messaging you are free. Only messages "
-         "your business sends first (reminders, renewal follow-ups, lead outreach) carry a fee.")
-
     # Step 7 - Enter in dashboard
-    h1(pdf, "Step 7: Enter Your Credentials in the BookingAI Dashboard")
-    body(pdf, "You now have all 3 required pieces. Go to your BookingAI dashboard:")
+    h1(pdf, "Step 7: Enter Your Credentials in the Dusk AI Dashboard")
+    body(pdf, "You now have all the required information. Go to your Dusk AI dashboard "
+              "(https://duskai.net):")
     step(pdf, 1, "Navigate to Dashboard > Locations")
     step(pdf, 2, "Find the location you want to connect and click 'Connect WhatsApp'")
-    step(pdf, 3, "Phone Number ID: paste the number you copied in Step 3")
-    step(pdf, 4, "WABA ID: paste the WhatsApp Business Account ID from Step 3")
-    step(pdf, 5, "Access Token: paste the permanent token from Step 4")
-    step(pdf, 6, "Display phone (optional): your number in international format, "
+    step(pdf, 3, "Phone Number ID: paste the ID you noted in Step 3 "
+                 "(e.g. 1096844540188743 for +91 96262 53222)")
+    step(pdf, 4, "WABA ID: paste the WhatsApp Business Account ID from Step 3 "
+                 "(e.g. 1037846842049930)")
+    step(pdf, 5, "Access Token: paste the permanent token you generated in Step 4")
+    step(pdf, 6, "Display phone: enter your number in international format, "
                  "e.g. +91 96262 53222")
     step(pdf, 7, "Click 'Connect WhatsApp'")
     body(pdf,
@@ -251,22 +258,20 @@ def build():
          "a few seconds.")
 
     # Step 8 - Business Verification
-    h1(pdf, "Step 8: Complete Business Verification (Recommended)")
+    h1(pdf, "Step 8: Complete Business Verification (Important)")
     body(pdf,
-         "In the Meta App Dashboard left sidebar under WhatsApp, you will see "
-         "'Step 3. Business verification'. This is separate from the phone number OTP you "
-         "did earlier. This step proves to Meta that your business is a real, legally "
-         "registered entity - and it directly controls how many customers you can message "
-         "per day.")
+         "In the Meta App Dashboard left sidebar under WhatsApp, click "
+         "'Step 3. Business verification'. This proves to Meta that your business is a "
+         "real, legally registered entity and directly controls how many customers you "
+         "can message per day.")
     body(pdf,
          "Every new WhatsApp account starts with a limit of around 250 conversations per "
-         "day. Completing Business Verification increases that limit significantly and "
-         "allows it to grow further over time. Skip it now and you may hit a wall mid-day "
-         "where no more messages can be sent until the next day.")
-    step(pdf, 1, "Click 'Step 3. Business verification' in the Meta App Dashboard sidebar, "
-                 "or go to business.facebook.com > Settings > Business info > Start verification")
-    step(pdf, 2, "Enter your legal business name and registered address exactly as they appear "
-                 "on your official documents - even small mismatches cause rejection")
+         "day. Completing Business Verification increases this limit significantly. "
+         "Skip it now and you may hit a wall mid-day where no more messages go out.")
+    step(pdf, 1, "Click 'Get started' at the bottom of the Production Setup page, or "
+                 "click 'Step 3. Business verification' in the left sidebar")
+    step(pdf, 2, "Enter your legal business name and registered address exactly as they "
+                 "appear on your official documents - even small mismatches cause rejection")
     step(pdf, 3, "Upload one supporting document. Accepted in India:")
     bullet(pdf, "GST Registration Certificate (most commonly accepted and fastest)")
     bullet(pdf, "Udyam / MSME Registration Certificate")
@@ -280,8 +285,8 @@ def build():
     # Step 9 - Display Name
     h1(pdf, "Step 9: Get Your Display Name Approved")
     body(pdf,
-         "The name customers see on WhatsApp when you message them (your business name) "
-         "goes through its own separate review. It is not automatic.")
+         "The name customers see on WhatsApp when you message them goes through its own "
+         "separate review. It is not automatic.")
     step(pdf, 1, "Go to business.facebook.com > WhatsApp Manager")
     step(pdf, 2, "Click on your phone number, then go to 'Profile'")
     step(pdf, 3, "Set your display name to your real business name as customers know it")

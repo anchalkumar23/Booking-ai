@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -61,31 +62,42 @@ async def import_leads_csv(
     _=Depends(_get_current_user),
 ):
     """
-    Import leads from a CSV file.
+    Import leads from a CSV or Excel (.xlsx) file.
     Required columns: full_name, phone
     Optional columns: language (en/hi/ta), source
     """
-    if not file.filename.endswith(".csv"):
+    filename = (file.filename or "").lower()
+    if not (filename.endswith(".csv") or filename.endswith(".xlsx")):
         raise HTTPException(
             status_code=400,
-            detail={"message": "Only CSV files are accepted.", "code": "invalid_file"},
+            detail={"message": "Only CSV or Excel (.xlsx) files are accepted.", "code": "invalid_file"},
         )
 
     content = await file.read()
+    rows: list[dict] = []
+
     try:
-        text = content.decode("utf-8-sig")  # handle BOM
-        reader = csv.DictReader(io.StringIO(text))
-        rows = list(reader)
+        if filename.endswith(".xlsx"):
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            headers = [str(c.value).strip().lower() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+            for excel_row in ws.iter_rows(min_row=2, values_only=True):
+                rows.append({headers[i]: (str(v).strip() if v is not None else "") for i, v in enumerate(excel_row)})
+            wb.close()
+        else:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            rows = [{k.strip().lower(): v for k, v in r.items()} for r in reader]
     except Exception as e:
         raise HTTPException(
             status_code=400,
-            detail={"message": f"Could not parse CSV: {e}", "code": "parse_error"},
+            detail={"message": f"Could not parse file: {e}", "code": "parse_error"},
         )
 
     if not rows:
         raise HTTPException(
             status_code=400,
-            detail={"message": "CSV file is empty.", "code": "empty_file"},
+            detail={"message": "File is empty.", "code": "empty_file"},
         )
 
     result = bulk_create_leads(db=db, location_id=location_id, rows=rows)
