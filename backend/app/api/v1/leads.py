@@ -51,6 +51,7 @@ def create_lead(
         phone=body.phone,
         language=body.language,
         source=body.source,
+        follow_up_date=body.follow_up_date,
     )
 
 

@@ -1,4 +1,6 @@
 import logging
+from datetime import date
+from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from app.models.lead import Lead, LeadStatus
@@ -23,6 +25,7 @@ def create_lead_and_trigger_outreach(
     phone: str,
     language: Language,
     source: str,
+    follow_up_date: Optional[date] = None,
 ) -> Lead:
     """Create a lead and immediately fire WhatsApp sequence + Bolna call."""
     # Validate location exists
@@ -52,6 +55,7 @@ def create_lead_and_trigger_outreach(
         language=language,
         source=source,
         status=LeadStatus.new,
+        follow_up_date=follow_up_date,
     )
     db.add(lead)
     db.commit()

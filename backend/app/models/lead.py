@@ -1,7 +1,9 @@
 import enum
 import uuid
-from sqlalchemy import String, Boolean, Integer, ForeignKey, Enum as SAEnum
+from datetime import date
+from sqlalchemy import String, Boolean, Integer, Date, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
+from typing import Optional
 from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base, UUIDMixin
 from app.models.customer import Language
@@ -27,3 +29,4 @@ class Lead(UUIDMixin, Base):
     wa_sequence_step: Mapped[int] = mapped_column(Integer, default=0)
     wa_stopped: Mapped[bool] = mapped_column(Boolean, default=False)
     call_stopped: Mapped[bool] = mapped_column(Boolean, default=False)
+    follow_up_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

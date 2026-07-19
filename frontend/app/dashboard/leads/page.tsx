@@ -13,7 +13,7 @@ interface Lead {
   id: string; full_name: string; phone: string; language: string;
   source: string; status: string; wa_sequence_step: number;
   wa_stopped: boolean; call_stopped: boolean; created_at: string;
-  location_id: string;
+  follow_up_date: string | null; location_id: string;
 }
 
 const STATUSES = ["new","contacted","interested","converted","not_interested"];
@@ -38,7 +38,7 @@ export default function LeadsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ full_name:"", phone:"", language:"en", source:"manual" });
+  const [form, setForm] = useState({ full_name:"", phone:"", language:"en", source:"manual", follow_up_date:"" });
 
   const fetchData = useCallback(async () => {
     if (!locationId) return;
@@ -58,10 +58,11 @@ export default function LeadsPage() {
     if (!form.full_name || !form.phone) return;
     setSubmitting(true);
     try {
-      await apiFetch("/v1/leads", { method:"POST", body:JSON.stringify({ ...form, location_id: locationId }) });
+      const payload = { ...form, location_id: locationId, follow_up_date: form.follow_up_date || null };
+      await apiFetch("/v1/leads", { method:"POST", body:JSON.stringify(payload) });
       setToast({message:"Lead added — outreach started",type:"success"});
       setShowAdd(false);
-      setForm({full_name:"",phone:"",language:"en",source:"manual"});
+      setForm({full_name:"",phone:"",language:"en",source:"manual",follow_up_date:""});
       fetchData();
     } catch (e: any) {
       setToast({message:e.detail?.message || "Failed to add lead",type:"error"});
@@ -179,7 +180,7 @@ export default function LeadsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {["Name","Phone","Language","Source","Status","WA Step","Outreach","Actions"].map(h => (
+                {["Name","Phone","Language","Source","Follow-up","Status","WA Step","Outreach","Actions"].map(h => (
                   <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -193,6 +194,15 @@ export default function LeadsPage() {
                   <td className="px-4 py-3">{l.phone}</td>
                   <td className="px-4 py-3">{l.language.toUpperCase()}</td>
                   <td className="px-4 py-3">{l.source}</td>
+                  <td className="px-4 py-3">
+                    {l.follow_up_date ? (
+                      <span className={`text-xs font-medium ${new Date(l.follow_up_date) < new Date() ? "text-rose-600" : "text-foreground"}`}>
+                        {new Date(l.follow_up_date).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-muted-foreground">Step {l.wa_sequence_step}/4</span>
@@ -252,6 +262,10 @@ export default function LeadsPage() {
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Source</label>
                 <Input value={form.source} onChange={e => setForm({...form,source:e.target.value})} placeholder="facebook_ad" />
               </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Follow-up Date <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input type="date" value={form.follow_up_date} onChange={e => setForm({...form,follow_up_date:e.target.value})} />
             </div>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-700">
               ✅ Adding this lead will <b>automatically start</b> the 4-step WhatsApp sequence and a Bolna cold call.
