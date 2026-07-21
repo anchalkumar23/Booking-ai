@@ -1,0 +1,163 @@
+import logging
+import uuid
+from datetime import date, timedelta
+from typing import Optional
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
+
+from app.models.promo_campaign import PromoCampaign, CampaignAudience, CampaignStatus
+from app.models.customer import Customer
+from app.models.membership import Membership
+from app.models.lead import Lead, LeadStatus
+from app.models.location import Location
+from app.models.suppression import SuppressionList
+
+logger = logging.getLogger(__name__)
+
+# Stagger promo calls so a big list doesn't dial everyone at once.
+CALL_STAGGER_SECS = 60
+
+
+def _suppressed_phones(db: Session) -> set:
+    return {row.phone for row in db.query(SuppressionList.phone).all()}
+
+
+def resolve_audience(
+    db: Session,
+    location_id: uuid.UUID,
+    audience: CampaignAudience,
+    tier: Optional[str] = None,
+    expiring_days: Optional[int] = None,
+    lead_status: Optional[str] = None,
+) -> list[dict]:
+    """Return a deduped list of {phone, name, language} for the chosen audience,
+    excluding suppressed / DND / call-stopped contacts and rows without a phone."""
+    suppressed = _suppressed_phones(db)
+    contacts: dict[str, dict] = {}  # keyed by phone → dedupe
+
+    def add(phone: str, name: str, language: str):
+        phone = (phone or "").strip()
+        if not phone or phone in suppressed or phone in contacts:
+            return
+        contacts[phone] = {"phone": phone, "name": name or "there", "language": language or "en"}
+
+    if audience == CampaignAudience.all_customers:
+        rows = db.query(Customer).filter(
+            Customer.location_id == location_id,
+            Customer.is_suppressed == False,
+            Customer.is_dnd == False,
+        ).all()
+        for c in rows:
+            add(c.phone, c.full_name, c.language.value)
+
+    elif audience == CampaignAudience.members_by_tier:
+        q = db.query(Customer, Membership).join(
+            Membership, Membership.customer_id == Customer.id
+        ).filter(
+            Membership.location_id == location_id,
+            Customer.is_suppressed == False,
+            Customer.is_dnd == False,
+        )
+        if tier:
+            q = q.filter(Membership.tier == tier)
+        for c, _m in q.all():
+            add(c.phone, c.full_name, c.language.value)
+
+    elif audience == CampaignAudience.expiring_members:
+        cutoff = date.today() + timedelta(days=expiring_days if expiring_days is not None else 7)
+        q = db.query(Customer, Membership).join(
+            Membership, Membership.customer_id == Customer.id
+        ).filter(
+            Membership.location_id == location_id,
+            Membership.expires_at <= cutoff,   # expiring within N days OR already lapsed
+            Customer.is_suppressed == False,
+            Customer.is_dnd == False,
+        )
+        for c, _m in q.all():
+            add(c.phone, c.full_name, c.language.value)
+
+    elif audience == CampaignAudience.leads:
+        q = db.query(Lead).filter(
+            Lead.location_id == location_id,
+            Lead.call_stopped == False,
+        )
+        if lead_status:
+            try:
+                q = q.filter(Lead.status == LeadStatus(lead_status))
+            except ValueError:
+                pass
+        for lead in q.all():
+            add(lead.phone, lead.full_name, lead.language.value)
+
+    return list(contacts.values())
+
+
+def preview_audience(db: Session, location_id: uuid.UUID, audience: CampaignAudience, **kwargs) -> int:
+    """How many contacts a campaign would reach — shown before launching."""
+    return len(resolve_audience(db, location_id, audience, **kwargs))
+
+
+def create_and_launch_campaign(
+    db: Session,
+    location_id: uuid.UUID,
+    name: str,
+    message: str,
+    audience: CampaignAudience,
+    tier: Optional[str] = None,
+    expiring_days: Optional[int] = None,
+    lead_status: Optional[str] = None,
+) -> PromoCampaign:
+    from app.tasks.bolna_tasks import send_promo_call
+    from app.integrations.whatsapp import location_agent_variables
+
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
+
+    contacts = resolve_audience(db, location_id, audience, tier=tier, expiring_days=expiring_days, lead_status=lead_status)
+
+    campaign = PromoCampaign(
+        location_id=location_id,
+        name=name,
+        message=message,
+        audience=audience,
+        tier=tier,
+        expiring_days=expiring_days,
+        lead_status=lead_status,
+        status=CampaignStatus.running,
+        total_targets=len(contacts),
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+
+    if not contacts:
+        campaign.status = CampaignStatus.completed
+        db.commit()
+        db.refresh(campaign)
+        return campaign
+
+    base_vars = location_agent_variables(location)
+    queued = 0
+    for i, contact in enumerate(contacts):
+        variables = {
+            **base_vars,
+            "customer_name": contact["name"],
+            "promo_message": message,
+            "language": contact["language"],
+        }
+        send_promo_call.apply_async(
+            kwargs={
+                "campaign_id": str(campaign.id),
+                "phone": contact["phone"],
+                "variables": variables,
+            },
+            countdown=30 + (i * CALL_STAGGER_SECS),
+        )
+        queued += 1
+
+    campaign.calls_queued = queued
+    db.commit()
+    db.refresh(campaign)
+    logger.info(f"Promo campaign {campaign.id} launched: {queued} calls staggered {CALL_STAGGER_SECS}s apart")
+    return campaign

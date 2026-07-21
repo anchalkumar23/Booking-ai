@@ -153,7 +153,13 @@ async def bolna_call_outcome(request: Request, db: Session = Depends(get_db)):
         settings.bolna_renewal_agent_id: CallPurpose.renewal,
         settings.bolna_lead_agent_id: CallPurpose.lead,
     }
-    purpose = purpose_map.get(agent_id, CallPurpose.reminder)
+    if settings.bolna_promo_agent_id:
+        purpose_map[settings.bolna_promo_agent_id] = CallPurpose.promo
+    # A promo call carries a campaign_id in user_data even when it falls back to the lead agent.
+    if user_data.get("campaign_id"):
+        purpose = CallPurpose.promo
+    else:
+        purpose = purpose_map.get(agent_id, CallPurpose.reminder)
 
     # Upsert — first webhook for a call may arrive before the final terminal one
     call_log = db.query(CallLog).filter(CallLog.bolna_call_id == call_id).first()

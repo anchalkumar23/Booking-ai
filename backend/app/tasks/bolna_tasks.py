@@ -77,6 +77,27 @@ def send_lead_call(self, lead_id: str, phone: str, variables: dict):
         raise self.retry(exc=exc, countdown=60)
 
 
+@celery_app.task(name="app.tasks.bolna_tasks.send_promo_call", bind=True, max_retries=3)
+def send_promo_call(self, campaign_id: str, phone: str, variables: dict):
+    """Send a promotional offer call via Bolna.
+    Uses the dedicated promo agent if configured, else falls back to the lead agent."""
+    if _is_suppressed(phone):
+        logger.info(f"Skipping promo call to suppressed number: {phone}")
+        return {"status": "suppressed"}
+    agent_id = settings.bolna_promo_agent_id or settings.bolna_lead_agent_id
+    try:
+        result = trigger_outbound_call_sync(
+            agent_id=agent_id,
+            recipient_phone=phone,
+            variables={**variables, "campaign_id": campaign_id},
+        )
+        logger.info(f"Promo call triggered for campaign {campaign_id} → {phone}: {result}")
+        return result
+    except Exception as exc:
+        logger.error(f"Promo call failed for {phone}: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+
 @celery_app.task(name="app.tasks.bolna_tasks.retry_call_task", bind=True, max_retries=2)
 def retry_call_task(self, phone: str, purpose: str, user_data: dict):
     """Auto-retry a missed or failed call."""

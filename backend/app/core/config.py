@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     bolna_reminder_agent_id: str = ""
     bolna_renewal_agent_id: str = ""
     bolna_lead_agent_id: str = ""
+    bolna_promo_agent_id: str = ""
     bolna_inbound_agent_id: str = ""
     bolna_inbound_phone: str = ""
     default_location_id: str = ""

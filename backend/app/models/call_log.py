@@ -15,6 +15,7 @@ class CallPurpose(str, enum.Enum):
     reminder = "reminder"
     renewal = "renewal"
     lead = "lead"
+    promo = "promo"
     inbound = "inbound"
 
 
