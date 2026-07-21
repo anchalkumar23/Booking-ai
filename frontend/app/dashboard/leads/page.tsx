@@ -13,7 +13,7 @@ interface Lead {
   id: string; full_name: string; phone: string; language: string;
   source: string; status: string; wa_sequence_step: number;
   wa_stopped: boolean; call_stopped: boolean; created_at: string;
-  follow_up_date: string | null; location_id: string;
+  follow_up_date: string | null; wa_last_error: string | null; location_id: string;
 }
 
 const STATUSES = ["new","contacted","interested","converted","not_interested"];
@@ -212,10 +212,15 @@ export default function LeadsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
                       {!l.wa_stopped && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">💬 Active</span>}
                       {!l.call_stopped && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">📞 Active</span>}
                     </div>
+                    {l.wa_last_error && (
+                      <div className="mt-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700" title={l.wa_last_error}>
+                        ⚠ {l.wa_last_error}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">

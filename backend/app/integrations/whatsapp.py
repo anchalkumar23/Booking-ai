@@ -18,6 +18,18 @@ class WhatsAppCredentials:
         self.access_token = access_token
 
 
+def _normalize_phone(phone: str) -> str:
+    """Ensure phone is in international format (+91XXXXXXXXXX) for WhatsApp."""
+    phone = (phone or "").strip().replace(" ", "").replace("-", "")
+    if phone.startswith("+"):
+        return phone
+    if phone.startswith("91") and len(phone) == 12:
+        return "+" + phone
+    if len(phone) == 10:
+        return "+91" + phone
+    return phone
+
+
 def _resolve_credentials(
     phone_number_id: Optional[str] = None,
     access_token: Optional[str] = None,
@@ -62,7 +74,7 @@ def send_template_message(
 
     payload = {
         "messaging_product": "whatsapp",
-        "to": phone,
+        "to": _normalize_phone(phone),
         "type": "template",
         "template": {
             "name": template_name,
@@ -104,7 +116,7 @@ def send_text_message(
 
     payload = {
         "messaging_product": "whatsapp",
-        "to": phone,
+        "to": _normalize_phone(phone),
         "type": "text",
         "text": {"body": text},
     }
@@ -132,14 +144,11 @@ def send_booking_confirmation(
     phone_number_id: Optional[str] = None,
     access_token: Optional[str] = None,
 ) -> dict:
-    """Send appointment confirmation via approved template."""
-    lang_map = {"en": "en", "hi": "hi", "ta": "ta_IN"}
-    template_map = {"en": "booking_confirmation_en", "hi": "booking_confirmation_hi", "ta": "booking_confirmation_ta"}
-
+    """Send appointment confirmation via approved template (English only)."""
     return send_template_message(
         phone=phone,
-        template_name=template_map.get(language, "booking_confirmation_en"),
-        language_code=lang_map.get(language, "en"),
+        template_name="booking_confirmation_en",
+        language_code="en",
         components=[{
             "type": "body",
             "parameters": [

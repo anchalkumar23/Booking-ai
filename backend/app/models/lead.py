@@ -30,3 +30,4 @@ class Lead(UUIDMixin, Base):
     wa_stopped: Mapped[bool] = mapped_column(Boolean, default=False)
     call_stopped: Mapped[bool] = mapped_column(Boolean, default=False)
     follow_up_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    wa_last_error: Mapped[Optional[str]] = mapped_column(String, nullable=True)

@@ -13,7 +13,6 @@ from app.integrations.whatsapp import (
     send_template_message,
     send_booking_confirmation,
     send_text_message,
-    language_from_code,
     credentials_from_location,
 )
 from app.services.whatsapp_assistant import generate_reply
@@ -21,13 +20,13 @@ from app.services.whatsapp_assistant import generate_reply
 logger = logging.getLogger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
 
-# 4-step lead outreach templates (must be pre-approved by Meta)
-# These template names must match exactly what you submit for Meta approval
+# 4-step lead outreach templates (English only — must be pre-approved by Meta).
+# These template names must match exactly what you submit for Meta approval.
 LEAD_SEQUENCE_TEMPLATES = {
-    1: {"en": "lead_intro_en", "hi": "lead_intro_hi", "ta": "lead_intro_ta"},
-    2: {"en": "lead_followup_en", "hi": "lead_followup_hi", "ta": "lead_followup_ta"},
-    3: {"en": "lead_offer_en", "hi": "lead_offer_hi", "ta": "lead_offer_ta"},
-    4: {"en": "lead_lastchance_en", "hi": "lead_lastchance_hi", "ta": "lead_lastchance_ta"},
+    1: "lead_intro_en",
+    2: "lead_followup_en",
+    3: "lead_offer_en",
+    4: "lead_lastchance_en",
 }
 
 # Days between each step
@@ -135,19 +134,17 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
         if creds:
             wa_pid, wa_token = creds.phone_number_id, creds.access_token
 
-        lang = lead.language.value
-        templates = LEAD_SEQUENCE_TEMPLATES.get(step_number, {})
-        template_name = templates.get(lang, templates.get("en", ""))
+        template_name = LEAD_SEQUENCE_TEMPLATES.get(step_number, "")
 
         if not template_name:
-            logger.error(f"No template found for step {step_number}, language {lang}")
+            logger.error(f"No template found for step {step_number}")
             return
 
         try:
             result = send_template_message(
                 phone=lead.phone,
                 template_name=template_name,
-                language_code=language_from_code(lang),
+                language_code="en",
                 components=[{
                     "type": "body",
                     "parameters": [
@@ -160,16 +157,19 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
             )
 
             if result.get("status") in ("stub", "skipped"):
-                logger.info(f"WA step {step_number} skipped for lead {lead_id}: {result.get('reason', result.get('status'))}")
-                step.status = StepStatus.sent  # mark as sent so sequence continues
-                step.sent_at = datetime.now(timezone.utc)
+                reason = result.get("reason", result.get("status"))
+                logger.info(f"WA step {step_number} skipped for lead {lead_id}: {reason}")
+                # Surface the reason on the lead so it's visible in the dashboard
+                if reason == "template_not_found":
+                    lead.wa_last_error = f"Template '{template_name}' not approved in Meta yet"
+                elif result.get("status") == "stub":
+                    lead.wa_last_error = "WhatsApp not connected for this location"
+                else:
+                    lead.wa_last_error = f"WhatsApp step {step_number} skipped: {reason}"
+                step.status = StepStatus.failed
                 db.commit()
-                if step_number < 4:
-                    delay_days = STEP_DELAYS_DAYS.get(step_number + 1, 2)
-                    send_lead_sequence_step.apply_async(
-                        kwargs={"lead_id": lead_id, "step_number": step_number + 1},
-                        countdown=delay_days * 86400,
-                    )
+                # Don't schedule further steps — they'd fail the same way.
+                # Fix the template/connection, then re-add the lead.
                 return
 
             wa_message_id = result.get("messages", [{}])[0].get("id", f"stub_{lead_id}_{step_number}")
@@ -181,6 +181,7 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
             step.status = StepStatus.sent
             step.sent_at = datetime.now(timezone.utc)
             lead.wa_sequence_step = step_number
+            lead.wa_last_error = None  # clear any previous error on success
             db.commit()
 
             # Schedule next step if not the last
@@ -194,6 +195,7 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
 
         except Exception as exc:
             step.status = StepStatus.failed
+            lead.wa_last_error = f"WhatsApp send failed (step {step_number})"
             db.commit()
             logger.error(f"WA step {step_number} failed for lead {lead_id}: {exc}")
             raise self.retry(exc=exc, countdown=120)

@@ -42,4 +42,5 @@ class LeadOut(BaseModel):
     wa_stopped: bool
     call_stopped: bool
     follow_up_date: Optional[date] = None
+    wa_last_error: Optional[str] = None
     created_at: datetime
