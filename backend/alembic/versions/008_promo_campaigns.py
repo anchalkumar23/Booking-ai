@@ -6,6 +6,7 @@ Create Date: 2026-07-20
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 
 revision = "008"
@@ -20,13 +21,15 @@ def upgrade():
     with op.get_context().autocommit_block():
         op.execute("ALTER TYPE callpurpose ADD VALUE IF NOT EXISTS 'promo'")
 
-    campaign_audience = sa.Enum(
+    # create_type=False so op.create_table does NOT implicitly re-create these types —
+    # we create them once, explicitly, with checkfirst.
+    campaign_audience = postgresql.ENUM(
         "all_customers", "members_by_tier", "expiring_members", "leads",
-        name="campaignaudience",
+        name="campaignaudience", create_type=False,
     )
-    campaign_status = sa.Enum(
+    campaign_status = postgresql.ENUM(
         "running", "completed", "failed",
-        name="campaignstatus",
+        name="campaignstatus", create_type=False,
     )
     campaign_audience.create(op.get_bind(), checkfirst=True)
     campaign_status.create(op.get_bind(), checkfirst=True)
