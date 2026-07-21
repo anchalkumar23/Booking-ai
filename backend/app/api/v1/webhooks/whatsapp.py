@@ -80,8 +80,9 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
         changes = entry["changes"][0]
         value = changes["value"]
 
-        # Handle status updates (delivered, read, etc.)
+        # Handle status updates (delivered, read, failed, etc.)
         if "statuses" in value:
+            logger.info(f"WhatsApp status webhook: {value['statuses']}")
             _handle_status_updates(db, value["statuses"])
             return {"status": "ok"}
 
@@ -129,6 +130,20 @@ def _handle_status_updates(db: Session, statuses: list) -> None:
     for status in statuses:
         wa_id = status.get("id")
         new_status = status.get("status")
+        recipient = status.get("recipient_id")
+
+        # When Meta drops a message it explains why in `errors` — surface it loudly.
+        if new_status == "failed":
+            errors = status.get("errors", [])
+            for err in errors:
+                logger.error(
+                    f"WhatsApp DELIVERY FAILED to {recipient} (msg {wa_id}): "
+                    f"code={err.get('code')} title={err.get('title')} "
+                    f"details={err.get('error_data', {}).get('details') or err.get('message')}"
+                )
+            if not errors:
+                logger.error(f"WhatsApp DELIVERY FAILED to {recipient} (msg {wa_id}): no error detail provided")
+
         status_map = {
             "sent": WAStatus.sent,
             "delivered": WAStatus.delivered,
