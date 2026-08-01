@@ -51,11 +51,11 @@ function LoginForm() {
   }
 
   return (
-    <main className="grid min-h-svh grid-cols-1 bg-background lg:grid-cols-2">
+    <main className="grid min-h-svh grid-cols-1 bg-background lg:h-svh lg:grid-cols-2 lg:overflow-hidden">
       {toast && <Toast message={toast.message} type={toast.type} onClose={dismissToast} />}
 
       {/* Feature panel */}
-      <section className="relative hidden overflow-hidden border-r border-border bg-secondary/40 lg:flex lg:flex-col">
+      <section className="relative hidden overflow-hidden border-r border-border bg-secondary/40 lg:flex lg:flex-col lg:overflow-y-auto">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-60"
@@ -67,7 +67,7 @@ function LoginForm() {
           }}
         />
 
-        <div className="relative flex flex-1 flex-col justify-center px-10 py-12 xl:px-16">
+        <div className="relative flex flex-1 flex-col justify-center px-10 py-8 xl:px-16">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <span className="font-serif text-lg font-semibold leading-none">D</span>
@@ -78,7 +78,7 @@ function LoginForm() {
             </div>
           </div>
 
-          <h1 className="mt-14 font-serif text-6xl leading-[1.05] tracking-tight text-foreground xl:text-7xl">
+          <h1 className="mt-10 font-serif text-5xl leading-[1.05] tracking-tight text-foreground xl:text-6xl">
             Automate.
             <br />
             <span className="italic">Engage.</span>
@@ -86,13 +86,13 @@ function LoginForm() {
             Grow.
           </h1>
 
-          <p className="mt-7 max-w-sm text-pretty leading-relaxed text-muted-foreground">
+          <p className="mt-5 max-w-sm text-pretty leading-relaxed text-muted-foreground">
             AI-powered voice calls and WhatsApp automation for your gyms, salons &amp; restaurants — all from one dashboard.
           </p>
 
-          <ul className="mt-10 max-w-lg space-y-3">
+          <ul className="mt-8 max-w-lg space-y-2.5">
             {features.map((feature) => (
-              <li key={feature.title} className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-4">
+              <li key={feature.title} className="flex items-center gap-4 rounded-2xl border border-border bg-card px-5 py-3.5">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground">
                   <feature.icon className="h-5 w-5" strokeWidth={1.75} />
                 </div>
@@ -108,7 +108,7 @@ function LoginForm() {
       </section>
 
       {/* Sign-in form */}
-      <section className="flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-16">
+      <section className="flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-16 lg:overflow-y-auto">
         <div className="mx-auto w-full max-w-md">
           <div className="mb-10 flex items-center gap-3 lg:hidden">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
