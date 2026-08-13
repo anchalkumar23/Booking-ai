@@ -62,16 +62,20 @@ def create_lead_and_trigger_outreach(
     db.refresh(lead)
 
     # Trigger outreach asynchronously
-    _trigger_outreach(lead, location)
+    _trigger_outreach(db, lead, location)
+    db.commit()  # persist the scheduled_call row
     return lead
 
 
-def _trigger_outreach(lead: Lead, location: Location, call_delay: int = 30) -> None:
-    """Fire WhatsApp sequence and Bolna cold call.
+def _trigger_outreach(db: Session, lead: Lead, location: Location, call_delay: int = 30) -> None:
+    """Fire WhatsApp sequence and queue a Bolna cold call.
     call_delay: seconds before the Bolna call fires (default 30s so WA lands first;
-    bulk imports increase this per-lead to stagger calls)."""
+    bulk imports increase this per-lead to stagger calls). The call is written to the
+    scheduled_calls queue (not a Celery countdown) so it survives worker restarts.
+    Caller is responsible for committing."""
+    from datetime import datetime, timezone, timedelta
     from app.tasks.whatsapp_tasks import start_lead_sequence
-    from app.tasks.bolna_tasks import send_lead_call
+    from app.models.scheduled_call import ScheduledCall, ScheduledCallKind
     from app.integrations.whatsapp import location_agent_variables
 
     variables = {
@@ -82,19 +86,18 @@ def _trigger_outreach(lead: Lead, location: Location, call_delay: int = 30) -> N
         "lead_id": str(lead.id),
     }
 
-    # Start WhatsApp 4-step sequence
+    # Start WhatsApp 4-step sequence (step 1 immediate)
     start_lead_sequence.delay(lead_id=str(lead.id))
 
-    # Bolna cold call
-    send_lead_call.apply_async(
-        kwargs={
-            "lead_id": str(lead.id),
-            "phone": lead.phone,
-            "variables": variables,
-        },
-        countdown=call_delay,
-    )
-    logger.info(f"Outreach triggered for lead {lead.id} ({lead.phone}), call in {call_delay}s")
+    # Queue the Bolna cold call to fire at due_at
+    db.add(ScheduledCall(
+        kind=ScheduledCallKind.lead,
+        phone=lead.phone,
+        ref_id=str(lead.id),
+        variables=variables,
+        due_at=datetime.now(timezone.utc) + timedelta(seconds=call_delay),
+    ))
+    logger.info(f"Outreach queued for lead {lead.id} ({lead.phone}), call in {call_delay}s")
 
 
 def bulk_create_leads(
@@ -149,8 +152,8 @@ def bulk_create_leads(
         db.add(lead)
         db.flush()  # get the ID without full commit
         call_delay = 30 + (created * CALL_STAGGER_SECS)
-        _trigger_outreach(lead, location, call_delay=call_delay)
+        _trigger_outreach(db, lead, location, call_delay=call_delay)
         created += 1
 
-    db.commit()
+    db.commit()  # persists leads + their scheduled_call rows
     return {"created": created, "skipped": skipped, "errors": errors}

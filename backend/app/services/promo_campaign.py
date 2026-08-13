@@ -22,6 +22,32 @@ def _suppressed_phones(db: Session) -> set:
     return {row.phone for row in db.query(SuppressionList.phone).all()}
 
 
+def _queue_promo_calls(db: Session, campaign, location, contacts: list[dict], message: str) -> None:
+    """Write one scheduled_calls row per contact, staggered CALL_STAGGER_SECS apart.
+    The DB poller (dispatch_due_calls) fires them when due, so a worker restart mid-
+    campaign never drops calls. Caller commits."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.scheduled_call import ScheduledCall, ScheduledCallKind
+    from app.integrations.whatsapp import location_agent_variables
+
+    base_vars = location_agent_variables(location)
+    now = datetime.now(timezone.utc)
+    for i, contact in enumerate(contacts):
+        variables = {
+            **base_vars,
+            "customer_name": contact["name"],
+            "promo_message": message,
+            "language": contact["language"],
+        }
+        db.add(ScheduledCall(
+            kind=ScheduledCallKind.promo,
+            phone=contact["phone"],
+            ref_id=str(campaign.id),
+            variables=variables,
+            due_at=now + timedelta(seconds=30 + (i * CALL_STAGGER_SECS)),
+        ))
+
+
 def resolve_audience(
     db: Session,
     location_id: uuid.UUID,
@@ -106,9 +132,6 @@ def launch_campaign_from_contacts(
 ) -> PromoCampaign:
     """Create and launch a promo campaign from an uploaded CSV/Excel contact list.
     Each row needs at least `phone`; `full_name` (or `name`) is optional."""
-    from app.tasks.bolna_tasks import send_promo_call
-    from app.integrations.whatsapp import location_agent_variables
-
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
@@ -148,23 +171,7 @@ def launch_campaign_from_contacts(
         db.refresh(campaign)
         return campaign
 
-    base_vars = location_agent_variables(location)
-    for i, contact in enumerate(contact_list):
-        variables = {
-            **base_vars,
-            "customer_name": contact["name"],
-            "promo_message": message,
-            "language": contact["language"],
-        }
-        send_promo_call.apply_async(
-            kwargs={
-                "campaign_id": str(campaign.id),
-                "phone": contact["phone"],
-                "variables": variables,
-            },
-            countdown=30 + (i * CALL_STAGGER_SECS),
-        )
-
+    _queue_promo_calls(db, campaign, location, contact_list, message)
     campaign.calls_queued = len(contact_list)
     db.commit()
     db.refresh(campaign)
@@ -182,9 +189,6 @@ def create_and_launch_campaign(
     expiring_days: Optional[int] = None,
     lead_status: Optional[str] = None,
 ) -> PromoCampaign:
-    from app.tasks.bolna_tasks import send_promo_call
-    from app.integrations.whatsapp import location_agent_variables
-
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
@@ -212,27 +216,9 @@ def create_and_launch_campaign(
         db.refresh(campaign)
         return campaign
 
-    base_vars = location_agent_variables(location)
-    queued = 0
-    for i, contact in enumerate(contacts):
-        variables = {
-            **base_vars,
-            "customer_name": contact["name"],
-            "promo_message": message,
-            "language": contact["language"],
-        }
-        send_promo_call.apply_async(
-            kwargs={
-                "campaign_id": str(campaign.id),
-                "phone": contact["phone"],
-                "variables": variables,
-            },
-            countdown=30 + (i * CALL_STAGGER_SECS),
-        )
-        queued += 1
-
-    campaign.calls_queued = queued
+    _queue_promo_calls(db, campaign, location, contacts, message)
+    campaign.calls_queued = len(contacts)
     db.commit()
     db.refresh(campaign)
-    logger.info(f"Promo campaign {campaign.id} launched: {queued} calls staggered {CALL_STAGGER_SECS}s apart")
+    logger.info(f"Promo campaign {campaign.id} launched: {len(contacts)} calls staggered {CALL_STAGGER_SECS}s apart")
     return campaign

@@ -48,5 +48,12 @@ celery_app.conf.update(
             "task": "app.tasks.whatsapp_tasks.dispatch_due_wa_steps",
             "schedule": crontab(minute="*/5"),
         },
+        # Every minute — fire staggered outbound calls that are now due.
+        # Bulk lead/campaign calls live in the DB (scheduled_calls.due_at) rather than
+        # as Celery countdown tasks, so a worker restart mid-campaign never drops them.
+        "dispatch-due-calls": {
+            "task": "app.tasks.bolna_tasks.dispatch_due_calls",
+            "schedule": crontab(minute="*"),
+        },
     },
 )

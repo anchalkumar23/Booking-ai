@@ -1,9 +1,11 @@
 import logging
+from datetime import datetime, timezone
 from app.tasks.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.suppression import SuppressionList
 from app.models.customer import Customer
+from app.models.scheduled_call import ScheduledCall, ScheduledCallKind, ScheduledCallStatus
 from app.integrations.bolna import trigger_outbound_call_sync
 
 logger = logging.getLogger(__name__)
@@ -96,6 +98,43 @@ def send_promo_call(self, campaign_id: str, phone: str, variables: dict):
     except Exception as exc:
         logger.error(f"Promo call failed for {phone}: {exc}")
         raise self.retry(exc=exc, countdown=60)
+
+
+@celery_app.task(name="app.tasks.bolna_tasks.dispatch_due_calls")
+def dispatch_due_calls():
+    """Runs every minute (celery beat). Fires any scheduled_calls whose due_at has
+    passed. Rows are marked sent before dispatch so a call is never placed twice."""
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        due = (
+            db.query(ScheduledCall)
+            .filter(
+                ScheduledCall.status == ScheduledCallStatus.pending,
+                ScheduledCall.due_at <= now,
+            )
+            .order_by(ScheduledCall.due_at)
+            .limit(200)
+            .all()
+        )
+        if not due:
+            return {"dispatched": 0}
+
+        # Mark sent first (single commit) so a poller crash can't double-dial.
+        for row in due:
+            row.status = ScheduledCallStatus.sent
+            row.sent_at = now
+        db.commit()
+
+        for row in due:
+            if row.kind == ScheduledCallKind.promo:
+                send_promo_call.delay(campaign_id=row.ref_id, phone=row.phone, variables=row.variables)
+            else:
+                send_lead_call.delay(lead_id=row.ref_id, phone=row.phone, variables=row.variables)
+        logger.info(f"dispatch_due_calls fired {len(due)} call(s)")
+        return {"dispatched": len(due)}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="app.tasks.bolna_tasks.retry_call_task", bind=True, max_retries=2)
