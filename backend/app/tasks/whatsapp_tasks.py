@@ -167,9 +167,11 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
                 else:
                     lead.wa_last_error = f"WhatsApp step {step_number} skipped: {reason}"
                 step.status = StepStatus.failed
+                # Stop the whole sequence — later steps would fail identically and would
+                # otherwise still be picked up by the DB poller. Fix the template/connection
+                # then re-add the lead.
+                lead.wa_stopped = True
                 db.commit()
-                # Don't schedule further steps — they'd fail the same way.
-                # Fix the template/connection, then re-add the lead.
                 return
 
             wa_message_id = result.get("messages", [{}])[0].get("id", f"stub_{lead_id}_{step_number}")
@@ -183,15 +185,8 @@ def send_lead_sequence_step(self, lead_id: str, step_number: int):
             lead.wa_sequence_step = step_number
             lead.wa_last_error = None  # clear any previous error on success
             db.commit()
-
-            # Schedule next step if not the last
-            if step_number < 4:
-                delay_days = STEP_DELAYS_DAYS.get(step_number + 1, 2)
-                send_lead_sequence_step.apply_async(
-                    kwargs={"lead_id": lead_id, "step_number": step_number + 1},
-                    countdown=delay_days * 86400,
-                )
-                logger.info(f"Next WA step {step_number + 1} scheduled in {delay_days} days for lead {lead_id}")
+            # Steps 2-4 are already stored with their own scheduled_at and get sent by
+            # dispatch_due_wa_steps when due — no long-lived Celery countdown needed.
 
         except Exception as exc:
             step.status = StepStatus.failed
@@ -232,10 +227,41 @@ def start_lead_sequence(lead_id: str):
             ))
         db.commit()
 
-        # Send step 1 immediately
+        # Send step 1 immediately. Steps 2-4 are picked up by dispatch_due_wa_steps
+        # once their scheduled_at is reached (see below) — no long Celery countdowns.
         send_lead_sequence_step.delay(lead_id=lead_id, step_number=1)
         logger.info(f"Lead WA sequence started for lead {lead_id}")
 
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.whatsapp_tasks.dispatch_due_wa_steps")
+def dispatch_due_wa_steps():
+    """Runs every 5 minutes (celery beat). Sends any WhatsApp sequence steps whose
+    scheduled_at has passed and are still pending. This replaces multi-day Celery
+    countdown tasks, which Redis re-delivered hourly and which were lost on worker
+    restarts. The step records live in the DB, so scheduling is durable."""
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        due = (
+            db.query(LeadSequenceStep)
+            .filter(
+                LeadSequenceStep.channel == StepChannel.whatsapp,
+                LeadSequenceStep.status == StepStatus.pending,
+                LeadSequenceStep.scheduled_at <= now,
+            )
+            .order_by(LeadSequenceStep.scheduled_at)
+            .limit(500)
+            .all()
+        )
+        if not due:
+            return {"dispatched": 0}
+        for step in due:
+            send_lead_sequence_step.delay(lead_id=str(step.lead_id), step_number=step.step_number)
+        logger.info(f"dispatch_due_wa_steps queued {len(due)} due WhatsApp step(s)")
+        return {"dispatched": len(due)}
     finally:
         db.close()
 

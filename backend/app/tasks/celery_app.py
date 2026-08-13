@@ -22,6 +22,14 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     task_max_retries=3,
+    broker_connection_retry_on_startup=True,
+    # Redis re-delivers any task not acked within visibility_timeout (default 1 hour).
+    # Short-countdown call tasks are fine, but anything held longer than an hour was being
+    # re-delivered every hour, flooding the worker. Raise it above our longest delay.
+    # (Multi-day WhatsApp steps are now DB-polled instead — see dispatch_due_wa_steps —
+    # so nothing legitimately sits in the queue for days; this is just a safety margin.)
+    broker_transport_options={"visibility_timeout": 7200},  # 2 hours
+    result_backend_transport_options={"visibility_timeout": 7200},
     beat_schedule={
         # Daily at 9am IST — check memberships expiring in 7, 3, 1 days
         "check-expiring-memberships": {
@@ -32,6 +40,13 @@ celery_app.conf.update(
         "schedule-appointment-reminders": {
             "task": "app.tasks.scheduled_tasks.schedule_appointment_reminders",
             "schedule": crontab(minute="*/15"),
+        },
+        # Every 5 minutes — send any WhatsApp sequence steps that are now due.
+        # Multi-day steps live in the DB (lead_sequence_steps.scheduled_at), not as
+        # long-lived Celery ETA tasks, so they survive worker restarts and never churn.
+        "dispatch-due-wa-steps": {
+            "task": "app.tasks.whatsapp_tasks.dispatch_due_wa_steps",
+            "schedule": crontab(minute="*/5"),
         },
     },
 )

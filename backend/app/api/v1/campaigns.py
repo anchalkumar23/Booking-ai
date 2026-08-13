@@ -1,6 +1,9 @@
+import csv
+import io
 import uuid
+import openpyxl
 from typing import List, Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,6 +12,7 @@ from app.models.promo_campaign import PromoCampaign
 from app.schemas.promo_campaign import CampaignCreate, CampaignPreview, CampaignOut
 from app.services.promo_campaign import (
     create_and_launch_campaign,
+    launch_campaign_from_contacts,
     preview_audience,
 )
 
@@ -61,4 +65,53 @@ def create_campaign(
         tier=body.tier,
         expiring_days=body.expiring_days,
         lead_status=body.lead_status,
+    )
+
+
+@router.post("/import", response_model=CampaignOut, status_code=201)
+async def import_campaign(
+    location_id: uuid.UUID,
+    name: str = Form(...),
+    message: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """Launch a promo call campaign from an uploaded CSV or Excel contact list.
+    Required column: phone. Optional: full_name (or name)."""
+    filename = (file.filename or "").lower()
+    if not (filename.endswith(".csv") or filename.endswith(".xlsx")):
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "Only CSV or Excel (.xlsx) files are accepted.", "code": "invalid_file"},
+        )
+
+    content = await file.read()
+    rows: list[dict] = []
+    try:
+        if filename.endswith(".xlsx"):
+            wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            headers = [str(c.value).strip().lower() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+            for excel_row in ws.iter_rows(min_row=2, values_only=True):
+                rows.append({headers[i]: (str(v).strip() if v is not None else "") for i, v in enumerate(excel_row)})
+            wb.close()
+        else:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            rows = [{(k or "").strip().lower(): v for k, v in r.items()} for r in reader]
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Could not parse file: {e}", "code": "parse_error"},
+        )
+
+    if not rows:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "File is empty.", "code": "empty_file"},
+        )
+
+    return launch_campaign_from_contacts(
+        db=db, location_id=location_id, name=name, message=message, rows=rows,
     )

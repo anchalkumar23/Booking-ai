@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
@@ -22,7 +22,10 @@ const AUDIENCES = [
 ];
 const LEAD_STATUSES = ["new", "contacted", "interested", "converted", "not_interested"];
 
-const AUDIENCE_LABEL: Record<string, string> = Object.fromEntries(AUDIENCES.map(a => [a.value, a.label]));
+const AUDIENCE_LABEL: Record<string, string> = {
+  ...Object.fromEntries(AUDIENCES.map(a => [a.value, a.label])),
+  uploaded_list: "Uploaded CSV / Excel list",
+};
 
 const selectClass =
   "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -37,6 +40,12 @@ export default function CampaignsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importForm, setImportForm] = useState({ name: "", message: "" });
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     name: "", message: "", audience: "all_customers",
@@ -100,6 +109,38 @@ export default function CampaignsPage() {
     } finally { setSubmitting(false); }
   }
 
+  async function importCampaign() {
+    if (!importForm.name.trim() || !importForm.message.trim() || !importFile || !locationId) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      fd.append("name", importForm.name);
+      fd.append("message", importForm.message);
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/campaigns/import?location_id=${locationId}`, {
+        method: "POST", body: fd, credentials: "include",
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null);
+        throw new Error(err?.detail?.message || "Import failed");
+      }
+      const created: Campaign = await resp.json();
+      setToast({
+        message: created.total_targets === 0
+          ? "No valid contacts found in the file."
+          : `Campaign launched — ${created.calls_queued} calls queued (1 min apart), ${created.skipped} skipped.`,
+        type: created.total_targets === 0 ? "error" : "success",
+      });
+      setShowImport(false);
+      setImportForm({ name: "", message: "" });
+      setImportFile(null);
+      if (fileRef.current) fileRef.current.value = "";
+      fetchData();
+    } catch (e: any) {
+      setToast({ message: e.message || "Import failed", type: "error" });
+    } finally { setImporting(false); }
+  }
+
   return (
     <div className="px-5 py-8 sm:px-8 lg:px-10">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -109,7 +150,10 @@ export default function CampaignsPage() {
           <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📣 Promo Campaigns</h1>
           <p className="mt-2 text-muted-foreground">Bulk promotional calls for {activeLocation?.name}</p>
         </div>
-        <Button onClick={() => setShowNew(true)}>+ New Campaign</Button>
+        <div className="flex gap-2.5">
+          <Button variant="outline" onClick={() => setShowImport(true)}>⬆ Import CSV / Excel</Button>
+          <Button onClick={() => setShowNew(true)}>+ New Campaign</Button>
+        </div>
       </header>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
@@ -224,6 +268,46 @@ export default function CampaignsPage() {
 
             <Button onClick={launch} disabled={submitting || !form.name.trim() || !form.message.trim()} className="w-full">
               {submitting ? "Launching…" : "Launch Campaign & Start Calling"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {showImport && (
+        <Modal title="Import Contact List & Call" onClose={() => setShowImport(false)}>
+          <div className="flex flex-col gap-3.5">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Campaign name *</label>
+              <Input value={importForm.name} onChange={e => setImportForm({ ...importForm, name: e.target.value })} placeholder="August promo list" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Offer message *</label>
+              <textarea
+                value={importForm.message}
+                onChange={e => setImportForm({ ...importForm, message: e.target.value })}
+                rows={3}
+                placeholder="The offer the AI will pitch on each call."
+                className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Contact file (.csv or .xlsx) *</label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,.xlsx"
+                onChange={e => setImportFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground hover:file:bg-secondary/70"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Columns: <code>phone</code> (required, with +91), <code>full_name</code> (optional). Calls go out 1 min apart; suppressed/opted-out numbers are skipped.
+              </p>
+            </div>
+
+            <Button onClick={importCampaign} disabled={importing || !importForm.name.trim() || !importForm.message.trim() || !importFile} className="w-full">
+              {importing ? "Uploading & launching…" : "Upload & Start Calling"}
             </Button>
           </div>
         </Modal>

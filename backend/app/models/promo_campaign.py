@@ -12,6 +12,7 @@ class CampaignAudience(str, enum.Enum):
     members_by_tier = "members_by_tier"  # customers with a membership of a given tier
     expiring_members = "expiring_members"  # memberships expiring soon or already lapsed
     leads = "leads"                      # people in the Leads list
+    uploaded_list = "uploaded_list"      # contacts uploaded via CSV / Excel
 
 
 class CampaignStatus(str, enum.Enum):
