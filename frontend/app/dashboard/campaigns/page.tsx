@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { useActiveLocation } from "@/lib/location-context";
 
 interface Campaign {
-  id: string; name: string; message: string; audience: string;
+  id: string; name: string; message: string; audience: string; channel: string;
   tier: string | null; expiring_days: number | null; lead_status: string | null;
-  status: string; total_targets: number; calls_queued: number; skipped: number;
+  wa_template: string | null;
+  status: string; total_targets: number; calls_queued: number; messages_queued: number; skipped: number;
   created_at: string;
 }
+interface WaTemplate { name: string; language: string; category?: string; variables: number; body?: string; }
 
 const AUDIENCES = [
   { value: "all_customers", label: "All customers at this location" },
@@ -30,6 +32,93 @@ const AUDIENCE_LABEL: Record<string, string> = {
 const selectClass =
   "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
+// Shared channel + message/template block used by both the New and Import modals.
+function ChannelFields({
+  channel, onChannel, message, onMessage, callPlaceholder,
+  templates, waConnected, waTemplate, waParams, onTemplate, onParam,
+}: {
+  channel: string; onChannel: (c: string) => void;
+  message: string; onMessage: (m: string) => void; callPlaceholder: string;
+  templates: WaTemplate[]; waConnected: boolean;
+  waTemplate: string; waParams: string[]; onTemplate: (name: string) => void; onParam: (i: number, v: string) => void;
+}) {
+  const selected = templates.find(t => t.name === waTemplate);
+  return (
+    <>
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-foreground">Channel</label>
+        <div className="grid grid-cols-2 gap-2">
+          {[["call", "📞 Voice calls"], ["whatsapp", "💬 WhatsApp"]].map(([val, label]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => onChannel(val)}
+              className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                channel === val ? "border-primary bg-primary/10 text-foreground" : "border-input text-muted-foreground hover:bg-secondary/50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {channel === "call" ? (
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Offer message *</label>
+          <textarea
+            value={message}
+            onChange={e => onMessage(e.target.value)}
+            rows={3}
+            placeholder={callPlaceholder}
+            className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+          />
+        </div>
+      ) : !waConnected ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-700">
+          WhatsApp isn&apos;t connected for this location. Connect it under Locations first.
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-700">
+          No approved templates found. Create and get a template approved in WhatsApp Manager, then it will appear here.
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">WhatsApp template *</label>
+            <select value={waTemplate} onChange={e => onTemplate(e.target.value)} className={selectClass}>
+              <option value="">Select an approved template…</option>
+              {templates.map(t => (
+                <option key={`${t.name}_${t.language}`} value={t.name}>
+                  {t.name} ({t.language}){t.variables ? ` · ${t.variables} variable${t.variables > 1 ? "s" : ""}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          {selected?.body && (
+            <div className="rounded-xl border border-border bg-secondary/40 px-3.5 py-2.5 text-xs text-muted-foreground whitespace-pre-wrap">
+              {selected.body}
+            </div>
+          )}
+          {selected && selected.variables > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Fill each variable. Type <code>{"{name}"}</code> to insert each customer&apos;s name.</p>
+              {Array.from({ length: selected.variables }).map((_, i) => (
+                <Input
+                  key={i}
+                  value={waParams[i] || ""}
+                  onChange={e => onParam(i, e.target.value)}
+                  placeholder={`Variable {{${i + 1}}}${i === 0 ? "  e.g. {name}" : ""}`}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 export default function CampaignsPage() {
   const { activeLocation } = useActiveLocation();
   const locationId = activeLocation?.id ?? "";
@@ -41,15 +130,18 @@ export default function CampaignsPage() {
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
+  const [templates, setTemplates] = useState<WaTemplate[]>([]);
+  const [waConnected, setWaConnected] = useState(false);
+
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [importForm, setImportForm] = useState({ name: "", message: "" });
+  const [importForm, setImportForm] = useState({ name: "", message: "", channel: "call", wa_template: "", wa_params: [] as string[] });
   const [importFile, setImportFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    name: "", message: "", audience: "all_customers",
-    tier: "", expiring_days: "7", lead_status: "",
+    name: "", message: "", audience: "all_customers", channel: "call",
+    tier: "", expiring_days: "7", lead_status: "", wa_template: "", wa_params: [] as string[],
   });
 
   const fetchData = useCallback(async () => {
@@ -63,8 +155,22 @@ export default function CampaignsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Reset preview whenever the audience filters change
+  useEffect(() => {
+    if (!locationId) return;
+    apiFetch<{ connected: boolean; templates: WaTemplate[] }>(`/v1/campaigns/templates?location_id=${locationId}`)
+      .then(r => { setWaConnected(r.connected); setTemplates(r.templates || []); })
+      .catch(() => { setWaConnected(false); setTemplates([]); });
+  }, [locationId]);
+
   useEffect(() => { setPreviewCount(null); }, [form.audience, form.tier, form.expiring_days, form.lead_status]);
+
+  // When a template is chosen, size the params array to its variable count.
+  function pickTemplate(name: string, current: string[], setter: (t: string, p: string[]) => void) {
+    const t = templates.find(x => x.name === name);
+    const count = t?.variables ?? 0;
+    const next = Array.from({ length: count }).map((_, i) => current[i] ?? "");
+    setter(name, next);
+  }
 
   function filterPayload() {
     return {
@@ -74,6 +180,18 @@ export default function CampaignsPage() {
       expiring_days: form.audience === "expiring_members" ? Number(form.expiring_days) || 7 : null,
       lead_status: form.audience === "leads" ? form.lead_status || null : null,
     };
+  }
+
+  function newFormValid() {
+    if (!form.name.trim()) return false;
+    return form.channel === "call" ? !!form.message.trim() : !!form.wa_template;
+  }
+  function importFormValid() {
+    if (!importForm.name.trim() || !importFile) return false;
+    return importForm.channel === "call" ? !!importForm.message.trim() : !!importForm.wa_template;
+  }
+  function templateLang(name: string) {
+    return templates.find(t => t.name === name)?.language || "en";
   }
 
   async function preview() {
@@ -88,20 +206,28 @@ export default function CampaignsPage() {
   }
 
   async function launch() {
-    if (!form.name.trim() || !form.message.trim()) return;
+    if (!newFormValid()) return;
     setSubmitting(true);
     try {
-      const created = await apiFetch<Campaign>("/v1/campaigns", {
-        method: "POST", body: JSON.stringify({ ...filterPayload(), name: form.name, message: form.message }),
-      });
+      const payload: any = {
+        ...filterPayload(), name: form.name, message: form.message, channel: form.channel,
+      };
+      if (form.channel === "whatsapp") {
+        payload.wa_template = form.wa_template;
+        payload.wa_language = templateLang(form.wa_template);
+        payload.wa_params = form.wa_params;
+      }
+      const created = await apiFetch<Campaign>("/v1/campaigns", { method: "POST", body: JSON.stringify(payload) });
+      const queued = created.channel === "whatsapp" ? created.messages_queued : created.calls_queued;
+      const verb = created.channel === "whatsapp" ? "messages" : "calls";
       setToast({
         message: created.total_targets === 0
           ? "Campaign created, but no contacts matched that audience."
-          : `Campaign launched — ${created.calls_queued} calls queued (1 min apart).`,
+          : `Campaign launched — ${queued} ${verb} queued.`,
         type: created.total_targets === 0 ? "error" : "success",
       });
       setShowNew(false);
-      setForm({ name: "", message: "", audience: "all_customers", tier: "", expiring_days: "7", lead_status: "" });
+      setForm({ name: "", message: "", audience: "all_customers", channel: "call", tier: "", expiring_days: "7", lead_status: "", wa_template: "", wa_params: [] });
       setPreviewCount(null);
       fetchData();
     } catch (e: any) {
@@ -110,13 +236,19 @@ export default function CampaignsPage() {
   }
 
   async function importCampaign() {
-    if (!importForm.name.trim() || !importForm.message.trim() || !importFile || !locationId) return;
+    if (!importFormValid() || !locationId) return;
     setImporting(true);
     try {
       const fd = new FormData();
-      fd.append("file", importFile);
+      fd.append("file", importFile as File);
       fd.append("name", importForm.name);
       fd.append("message", importForm.message);
+      fd.append("channel", importForm.channel);
+      if (importForm.channel === "whatsapp") {
+        fd.append("wa_template", importForm.wa_template);
+        fd.append("wa_language", templateLang(importForm.wa_template));
+        fd.append("wa_params", JSON.stringify(importForm.wa_params));
+      }
       const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/campaigns/import?location_id=${locationId}`, {
         method: "POST", body: fd, credentials: "include",
       });
@@ -125,14 +257,16 @@ export default function CampaignsPage() {
         throw new Error(err?.detail?.message || "Import failed");
       }
       const created: Campaign = await resp.json();
+      const queued = created.channel === "whatsapp" ? created.messages_queued : created.calls_queued;
+      const verb = created.channel === "whatsapp" ? "messages" : "calls";
       setToast({
         message: created.total_targets === 0
           ? "No valid contacts found in the file."
-          : `Campaign launched — ${created.calls_queued} calls queued (1 min apart), ${created.skipped} skipped.`,
+          : `Campaign launched — ${queued} ${verb} queued, ${created.skipped} skipped.`,
         type: created.total_targets === 0 ? "error" : "success",
       });
       setShowImport(false);
-      setImportForm({ name: "", message: "" });
+      setImportForm({ name: "", message: "", channel: "call", wa_template: "", wa_params: [] });
       setImportFile(null);
       if (fileRef.current) fileRef.current.value = "";
       fetchData();
@@ -147,8 +281,8 @@ export default function CampaignsPage() {
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📣 Promo Campaigns</h1>
-          <p className="mt-2 text-muted-foreground">Bulk promotional calls for {activeLocation?.name}</p>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📣 Campaigns</h1>
+          <p className="mt-2 text-muted-foreground">Bulk calls &amp; WhatsApp broadcasts for {activeLocation?.name}</p>
         </div>
         <div className="flex gap-2.5">
           <Button variant="outline" onClick={() => setShowImport(true)}>⬆ Import CSV / Excel</Button>
@@ -157,7 +291,7 @@ export default function CampaignsPage() {
       </header>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        💡 Each campaign calls everyone in the chosen audience with your offer, <b>1 minute apart</b>. Suppressed / DND / opted-out contacts are skipped automatically.
+        💡 Pick a channel per campaign — <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped.
       </div>
 
       {loading ? (
@@ -169,7 +303,7 @@ export default function CampaignsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {["Name", "Audience", "Targets", "Calls Queued", "Status", "Created"].map(h => (
+                {["Name", "Channel", "Audience", "Targets", "Queued", "Status", "Created"].map(h => (
                   <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -179,7 +313,14 @@ export default function CampaignsPage() {
                 <tr key={c.id} className="border-b border-border/60 last:border-0 align-top">
                   <td className="px-4 py-3">
                     <span className="font-semibold text-foreground">{c.name}</span>
-                    <p className="mt-0.5 max-w-xs truncate text-xs text-muted-foreground" title={c.message}>{c.message}</p>
+                    <p className="mt-0.5 max-w-xs truncate text-xs text-muted-foreground" title={c.wa_template || c.message}>
+                      {c.channel === "whatsapp" ? (c.wa_template || "—") : c.message}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${c.channel === "whatsapp" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}`}>
+                      {c.channel === "whatsapp" ? "💬 WhatsApp" : "📞 Call"}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs">{AUDIENCE_LABEL[c.audience] || c.audience}</span>
@@ -188,7 +329,7 @@ export default function CampaignsPage() {
                     {c.lead_status && <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px]">{c.lead_status}</span>}
                   </td>
                   <td className="px-4 py-3 font-serif text-lg">{c.total_targets}</td>
-                  <td className="px-4 py-3 font-serif text-lg">{c.calls_queued}</td>
+                  <td className="px-4 py-3 font-serif text-lg">{c.channel === "whatsapp" ? c.messages_queued : c.calls_queued}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
                       c.status === "running" ? "bg-blue-50 text-blue-700"
@@ -207,7 +348,7 @@ export default function CampaignsPage() {
       )}
 
       {showNew && (
-        <Modal title="New Promo Campaign" onClose={() => setShowNew(false)}>
+        <Modal title="New Campaign" onClose={() => setShowNew(false)}>
           <div className="flex flex-col gap-3.5">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Campaign name *</label>
@@ -231,7 +372,7 @@ export default function CampaignsPage() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Expiring within (days)</label>
                 <Input type="number" min={1} value={form.expiring_days} onChange={e => setForm({ ...form, expiring_days: e.target.value })} />
-                <p className="mt-1 text-xs text-muted-foreground">Includes members already lapsed. e.g. 7 = expiring in the next week or already expired.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Includes members already lapsed.</p>
               </div>
             )}
             {form.audience === "leads" && (
@@ -244,53 +385,59 @@ export default function CampaignsPage() {
               </div>
             )}
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Offer message *</label>
-              <textarea
-                value={form.message}
-                onChange={e => setForm({ ...form, message: e.target.value })}
-                rows={4}
-                placeholder="Tell customers about the offer. The AI will pitch this on the call, e.g. 'We're running 30% off annual memberships until the end of the month — would you like to renew at this rate?'"
-                className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-              />
-            </div>
+            <ChannelFields
+              channel={form.channel}
+              onChannel={c => setForm({ ...form, channel: c })}
+              message={form.message}
+              onMessage={m => setForm({ ...form, message: m })}
+              callPlaceholder="The offer the AI will pitch on the call, e.g. '30% off annual memberships this month.'"
+              templates={templates}
+              waConnected={waConnected}
+              waTemplate={form.wa_template}
+              waParams={form.wa_params}
+              onTemplate={name => pickTemplate(name, form.wa_params, (t, p) => setForm({ ...form, wa_template: t, wa_params: p }))}
+              onParam={(i, v) => setForm({ ...form, wa_params: form.wa_params.map((p, idx) => (idx === i ? v : p)) })}
+            />
 
             <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3.5 py-2.5">
               <Button type="button" variant="outline" size="sm" onClick={preview} disabled={previewing}>
                 {previewing ? "Checking…" : "Preview reach"}
               </Button>
               <span className="text-sm text-muted-foreground">
-                {previewCount === null ? "See how many people this will call." : (
-                  <><b className="text-foreground">{previewCount}</b> contact{previewCount === 1 ? "" : "s"} will be called (~{previewCount} min to dial all).</>
+                {previewCount === null ? "See how many people this will reach." : (
+                  <><b className="text-foreground">{previewCount}</b> contact{previewCount === 1 ? "" : "s"} will be reached.</>
                 )}
               </span>
             </div>
 
-            <Button onClick={launch} disabled={submitting || !form.name.trim() || !form.message.trim()} className="w-full">
-              {submitting ? "Launching…" : "Launch Campaign & Start Calling"}
+            <Button onClick={launch} disabled={submitting || !newFormValid()} className="w-full">
+              {submitting ? "Launching…" : form.channel === "whatsapp" ? "Launch WhatsApp Broadcast" : "Launch Campaign & Start Calling"}
             </Button>
           </div>
         </Modal>
       )}
 
       {showImport && (
-        <Modal title="Import Contact List & Call" onClose={() => setShowImport(false)}>
+        <Modal title="Import List & Send" onClose={() => setShowImport(false)}>
           <div className="flex flex-col gap-3.5">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Campaign name *</label>
               <Input value={importForm.name} onChange={e => setImportForm({ ...importForm, name: e.target.value })} placeholder="August promo list" />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Offer message *</label>
-              <textarea
-                value={importForm.message}
-                onChange={e => setImportForm({ ...importForm, message: e.target.value })}
-                rows={3}
-                placeholder="The offer the AI will pitch on each call."
-                className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-              />
-            </div>
+            <ChannelFields
+              channel={importForm.channel}
+              onChannel={c => setImportForm({ ...importForm, channel: c })}
+              message={importForm.message}
+              onMessage={m => setImportForm({ ...importForm, message: m })}
+              callPlaceholder="The offer the AI will pitch on each call."
+              templates={templates}
+              waConnected={waConnected}
+              waTemplate={importForm.wa_template}
+              waParams={importForm.wa_params}
+              onTemplate={name => pickTemplate(name, importForm.wa_params, (t, p) => setImportForm({ ...importForm, wa_template: t, wa_params: p }))}
+              onParam={(i, v) => setImportForm({ ...importForm, wa_params: importForm.wa_params.map((p, idx) => (idx === i ? v : p)) })}
+            />
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Contact file (.csv or .xlsx) *</label>
@@ -302,12 +449,12 @@ export default function CampaignsPage() {
                 className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground hover:file:bg-secondary/70"
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Columns: <code>phone</code> (required, with +91), <code>full_name</code> (optional). Calls go out 1 min apart; suppressed/opted-out numbers are skipped.
+                Columns: <code>phone</code> (required, with +91), <code>full_name</code> (optional). Suppressed / opted-out numbers are skipped.
               </p>
             </div>
 
-            <Button onClick={importCampaign} disabled={importing || !importForm.name.trim() || !importForm.message.trim() || !importFile} className="w-full">
-              {importing ? "Uploading & launching…" : "Upload & Start Calling"}
+            <Button onClick={importCampaign} disabled={importing || !importFormValid()} className="w-full">
+              {importing ? "Uploading & launching…" : importForm.channel === "whatsapp" ? "Upload & Send WhatsApp" : "Upload & Start Calling"}
             </Button>
           </div>
         </Modal>

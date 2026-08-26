@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from app.models.promo_campaign import PromoCampaign, CampaignAudience, CampaignStatus
+from app.models.promo_campaign import PromoCampaign, CampaignAudience, CampaignChannel, CampaignStatus
 from app.models.customer import Customer
 from app.models.membership import Membership
 from app.models.lead import Lead, LeadStatus
@@ -16,10 +16,36 @@ logger = logging.getLogger(__name__)
 
 # Stagger promo calls so a big list doesn't dial everyone at once.
 CALL_STAGGER_SECS = 60
+# WhatsApp messages can go out faster than calls; keep a light stagger for rate limits.
+MSG_STAGGER_SECS = 2
 
 
 def _suppressed_phones(db: Session) -> set:
     return {row.phone for row in db.query(SuppressionList.phone).all()}
+
+
+def _queue_wa_messages(
+    db: Session, campaign, location, contacts: list[dict],
+    template: str, language: str, params: list,
+) -> None:
+    """Write one scheduled_messages row per contact for a WhatsApp broadcast, lightly
+    staggered. Each contact's params have the {name} token replaced with their name.
+    The DB poller (dispatch_due_messages) sends them when due. Caller commits."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.scheduled_message import ScheduledMessage
+
+    now = datetime.now(timezone.utc)
+    for i, contact in enumerate(contacts):
+        resolved = [str(p).replace("{name}", contact["name"]) for p in (params or [])]
+        db.add(ScheduledMessage(
+            location_id=location.id,
+            campaign_id=str(campaign.id),
+            phone=contact["phone"],
+            template=template,
+            language=language or "en",
+            params=resolved,
+            due_at=now + timedelta(seconds=5 + (i * MSG_STAGGER_SECS)),
+        ))
 
 
 def _queue_promo_calls(db: Session, campaign, location, contacts: list[dict], message: str) -> None:
@@ -129,8 +155,12 @@ def launch_campaign_from_contacts(
     name: str,
     message: str,
     rows: list[dict],
+    channel: CampaignChannel = CampaignChannel.call,
+    wa_template: Optional[str] = None,
+    wa_language: Optional[str] = None,
+    wa_params: Optional[list] = None,
 ) -> PromoCampaign:
-    """Create and launch a promo campaign from an uploaded CSV/Excel contact list.
+    """Create and launch a campaign from an uploaded CSV/Excel contact list.
     Each row needs at least `phone`; `full_name` (or `name`) is optional."""
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
@@ -157,6 +187,10 @@ def launch_campaign_from_contacts(
         name=name,
         message=message,
         audience=CampaignAudience.uploaded_list,
+        channel=channel,
+        wa_template=wa_template,
+        wa_language=wa_language,
+        wa_params=wa_params,
         status=CampaignStatus.running,
         total_targets=len(contact_list),
         skipped=skipped,
@@ -165,17 +199,31 @@ def launch_campaign_from_contacts(
     db.commit()
     db.refresh(campaign)
 
-    if not contact_list:
+    return _finalize_launch(db, campaign, location, contact_list, message)
+
+
+def _finalize_launch(db: Session, campaign, location, contacts: list[dict], message: str) -> PromoCampaign:
+    """Queue calls or WhatsApp messages depending on the campaign channel."""
+    if not contacts:
         campaign.status = CampaignStatus.completed
         db.commit()
         db.refresh(campaign)
         return campaign
 
-    _queue_promo_calls(db, campaign, location, contact_list, message)
-    campaign.calls_queued = len(contact_list)
-    db.commit()
-    db.refresh(campaign)
-    logger.info(f"Promo campaign {campaign.id} (uploaded list) launched: {len(contact_list)} calls")
+    if campaign.channel == CampaignChannel.whatsapp:
+        if not campaign.wa_template:
+            raise HTTPException(status_code=400, detail={"message": "A WhatsApp template is required.", "code": "no_template"})
+        _queue_wa_messages(db, campaign, location, contacts, campaign.wa_template, campaign.wa_language, campaign.wa_params or [])
+        campaign.messages_queued = len(contacts)
+        db.commit()
+        db.refresh(campaign)
+        logger.info(f"WhatsApp campaign {campaign.id} launched: {len(contacts)} messages ({campaign.wa_template})")
+    else:
+        _queue_promo_calls(db, campaign, location, contacts, message)
+        campaign.calls_queued = len(contacts)
+        db.commit()
+        db.refresh(campaign)
+        logger.info(f"Call campaign {campaign.id} launched: {len(contacts)} calls")
     return campaign
 
 
@@ -185,9 +233,13 @@ def create_and_launch_campaign(
     name: str,
     message: str,
     audience: CampaignAudience,
+    channel: CampaignChannel = CampaignChannel.call,
     tier: Optional[str] = None,
     expiring_days: Optional[int] = None,
     lead_status: Optional[str] = None,
+    wa_template: Optional[str] = None,
+    wa_language: Optional[str] = None,
+    wa_params: Optional[list] = None,
 ) -> PromoCampaign:
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
@@ -200,9 +252,13 @@ def create_and_launch_campaign(
         name=name,
         message=message,
         audience=audience,
+        channel=channel,
         tier=tier,
         expiring_days=expiring_days,
         lead_status=lead_status,
+        wa_template=wa_template,
+        wa_language=wa_language,
+        wa_params=wa_params,
         status=CampaignStatus.running,
         total_targets=len(contacts),
     )
@@ -210,15 +266,4 @@ def create_and_launch_campaign(
     db.commit()
     db.refresh(campaign)
 
-    if not contacts:
-        campaign.status = CampaignStatus.completed
-        db.commit()
-        db.refresh(campaign)
-        return campaign
-
-    _queue_promo_calls(db, campaign, location, contacts, message)
-    campaign.calls_queued = len(contacts)
-    db.commit()
-    db.refresh(campaign)
-    logger.info(f"Promo campaign {campaign.id} launched: {len(contacts)} calls staggered {CALL_STAGGER_SECS}s apart")
-    return campaign
+    return _finalize_launch(db, campaign, location, contacts, message)

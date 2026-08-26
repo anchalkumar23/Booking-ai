@@ -55,5 +55,12 @@ celery_app.conf.update(
             "task": "app.tasks.bolna_tasks.dispatch_due_calls",
             "schedule": crontab(minute="*"),
         },
+        # Every minute — send queued WhatsApp broadcast messages that are now due.
+        # Rows live in the DB (scheduled_messages.due_at), so a broadcast survives
+        # worker restarts and never double-sends.
+        "dispatch-due-messages": {
+            "task": "app.tasks.whatsapp_tasks.dispatch_due_messages",
+            "schedule": crontab(minute="*"),
+        },
     },
 )

@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import uuid
 import openpyxl
 from typing import List, Optional
@@ -8,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.v1.auth import _get_current_user
-from app.models.promo_campaign import PromoCampaign
+from app.models.promo_campaign import PromoCampaign, CampaignChannel
+from app.models.location import Location
 from app.schemas.promo_campaign import CampaignCreate, CampaignPreview, CampaignOut
+from app.integrations.whatsapp import list_approved_templates, credentials_from_location
 from app.services.promo_campaign import (
     create_and_launch_campaign,
     launch_campaign_from_contacts,
@@ -17,6 +20,24 @@ from app.services.promo_campaign import (
 )
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+
+
+@router.get("/templates")
+def list_wa_templates(
+    location_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """List the location's APPROVED WhatsApp templates for the broadcast picker."""
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
+    waba_id = location.whatsapp_waba_id
+    creds = credentials_from_location(location)
+    token = creds.access_token if creds else None
+    if not waba_id or not token:
+        return {"connected": False, "templates": []}
+    return {"connected": True, "templates": list_approved_templates(waba_id, token)}
 
 
 @router.get("", response_model=List[CampaignOut])
@@ -55,16 +76,24 @@ def create_campaign(
     db: Session = Depends(get_db),
     _=Depends(_get_current_user),
 ):
-    """Create a promotional campaign and immediately queue staggered calls."""
+    """Create a campaign and immediately queue staggered calls or WhatsApp messages."""
+    if body.channel == CampaignChannel.call and not (body.message or "").strip():
+        raise HTTPException(status_code=400, detail={"message": "An offer message is required for call campaigns.", "code": "no_message"})
+    if body.channel == CampaignChannel.whatsapp and not body.wa_template:
+        raise HTTPException(status_code=400, detail={"message": "Select a WhatsApp template.", "code": "no_template"})
     return create_and_launch_campaign(
         db=db,
         location_id=body.location_id,
         name=body.name,
-        message=body.message,
+        message=body.message or body.wa_template or "",
         audience=body.audience,
+        channel=body.channel,
         tier=body.tier,
         expiring_days=body.expiring_days,
         lead_status=body.lead_status,
+        wa_template=body.wa_template,
+        wa_language=body.wa_language,
+        wa_params=body.wa_params,
     )
 
 
@@ -72,13 +101,30 @@ def create_campaign(
 async def import_campaign(
     location_id: uuid.UUID,
     name: str = Form(...),
-    message: str = Form(...),
+    message: str = Form(""),
+    channel: str = Form("call"),
+    wa_template: str = Form(""),
+    wa_language: str = Form("en"),
+    wa_params: str = Form("[]"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _=Depends(_get_current_user),
 ):
-    """Launch a promo call campaign from an uploaded CSV or Excel contact list.
+    """Launch a campaign (calls or WhatsApp) from an uploaded CSV or Excel contact list.
     Required column: phone. Optional: full_name (or name)."""
+    try:
+        chan = CampaignChannel(channel)
+    except ValueError:
+        chan = CampaignChannel.call
+    if chan == CampaignChannel.call and not message.strip():
+        raise HTTPException(status_code=400, detail={"message": "An offer message is required for call campaigns.", "code": "no_message"})
+    if chan == CampaignChannel.whatsapp and not wa_template:
+        raise HTTPException(status_code=400, detail={"message": "Select a WhatsApp template.", "code": "no_template"})
+    try:
+        params_list = json.loads(wa_params) if wa_params else []
+    except Exception:
+        params_list = []
+
     filename = (file.filename or "").lower()
     if not (filename.endswith(".csv") or filename.endswith(".xlsx")):
         raise HTTPException(
@@ -113,5 +159,6 @@ async def import_campaign(
         )
 
     return launch_campaign_from_contacts(
-        db=db, location_id=location_id, name=name, message=message, rows=rows,
+        db=db, location_id=location_id, name=name, message=message or wa_template or "", rows=rows,
+        channel=chan, wa_template=wa_template or None, wa_language=wa_language or "en", wa_params=params_list,
     )

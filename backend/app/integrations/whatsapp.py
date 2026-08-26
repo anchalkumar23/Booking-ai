@@ -1,3 +1,4 @@
+import re
 import logging
 import httpx
 from typing import Optional
@@ -160,6 +161,56 @@ def send_booking_confirmation(
         phone_number_id=phone_number_id,
         access_token=access_token,
     )
+
+
+def _body_variable_count(components: list) -> int:
+    """Count {{n}} placeholders in a template's BODY component."""
+    for comp in components or []:
+        if (comp.get("type") or "").upper() == "BODY":
+            nums = re.findall(r"\{\{\s*(\d+)\s*\}\}", comp.get("text") or "")
+            return max((int(n) for n in nums), default=0)
+    return 0
+
+
+def _body_text(components: list) -> str:
+    for comp in components or []:
+        if (comp.get("type") or "").upper() == "BODY":
+            return comp.get("text") or ""
+    return ""
+
+
+def list_approved_templates(waba_id: str, access_token: str) -> list[dict]:
+    """List APPROVED message templates for a WABA, with each one's body variable count.
+    Returns [{name, language, category, variables, body}] — used to populate the
+    broadcast template picker in the dashboard."""
+    if not waba_id or not access_token:
+        return []
+    out: list[dict] = []
+    url = f"{GRAPH_URL}/{waba_id}/message_templates"
+    params = {"fields": "name,status,language,category,components", "limit": 200}
+    try:
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(url, headers={"Authorization": f"Bearer {access_token}"}, params=params)
+            if not resp.is_success:
+                logger.error(f"WhatsApp template list error {resp.status_code}: {resp.text}")
+                return []
+            data = resp.json().get("data", [])
+    except Exception as e:
+        logger.error(f"WhatsApp template list failed: {e}")
+        return []
+
+    for t in data:
+        if (t.get("status") or "").upper() != "APPROVED":
+            continue
+        comps = t.get("components", [])
+        out.append({
+            "name": t.get("name"),
+            "language": t.get("language"),
+            "category": t.get("category"),
+            "variables": _body_variable_count(comps),
+            "body": _body_text(comps),
+        })
+    return out
 
 
 def is_opt_out(message_text: str) -> bool:

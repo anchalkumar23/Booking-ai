@@ -9,6 +9,7 @@ from app.models.lead import Lead, LeadStatus
 from app.models.lead_sequence_step import LeadSequenceStep, StepChannel, StepStatus
 from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAMessageType, WAStatus
 from app.models.location import Location
+from app.models.scheduled_message import ScheduledMessage, ScheduledMessageStatus
 from app.integrations.whatsapp import (
     send_template_message,
     send_booking_confirmation,
@@ -262,6 +263,88 @@ def dispatch_due_wa_steps():
             send_lead_sequence_step.delay(lead_id=str(step.lead_id), step_number=step.step_number)
         logger.info(f"dispatch_due_wa_steps queued {len(due)} due WhatsApp step(s)")
         return {"dispatched": len(due)}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.whatsapp_tasks.dispatch_due_messages")
+def dispatch_due_messages():
+    """Runs every minute (celery beat). Sends any queued WhatsApp broadcast messages
+    whose due_at has passed. Rows live in the DB, so a broadcast survives worker
+    restarts; each row is marked sent before dispatch so nobody is messaged twice."""
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        due = (
+            db.query(ScheduledMessage)
+            .filter(
+                ScheduledMessage.status == ScheduledMessageStatus.pending,
+                ScheduledMessage.due_at <= now,
+            )
+            .order_by(ScheduledMessage.due_at)
+            .limit(500)
+            .all()
+        )
+        if not due:
+            return {"dispatched": 0}
+
+        # Cache location credentials so we don't re-query per message.
+        loc_cache: dict = {}
+
+        def creds_for(location_id):
+            if location_id not in loc_cache:
+                loc = db.query(Location).filter(Location.id == location_id).first()
+                loc_cache[location_id] = credentials_from_location(loc)
+            return loc_cache[location_id]
+
+        # Mark all sent first (single commit) so a crash can't double-send.
+        for m in due:
+            m.status = ScheduledMessageStatus.sent
+            m.sent_at = now
+        db.commit()
+
+        sent = 0
+        for m in due:
+            if _is_suppressed(m.phone):
+                continue
+            creds = creds_for(m.location_id)
+            wa_pid = creds.phone_number_id if creds else None
+            wa_token = creds.access_token if creds else None
+            components = []
+            if m.params:
+                components = [{
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": str(p)} for p in m.params],
+                }]
+            try:
+                result = send_template_message(
+                    phone=m.phone,
+                    template_name=m.template,
+                    language_code=m.language or "en",
+                    components=components,
+                    phone_number_id=wa_pid,
+                    access_token=wa_token,
+                )
+                if result.get("status") in ("stub", "skipped"):
+                    logger.info(f"Broadcast msg to {m.phone} skipped: {result.get('reason', result.get('status'))}")
+                    continue
+                wa_message_id = result.get("messages", [{}])[0].get("id", f"bcast_{m.id}")
+                db.add(WhatsAppMessage(
+                    wa_message_id=wa_message_id,
+                    phone=m.phone,
+                    direction=WADirection.outbound,
+                    message_type=WAMessageType.template,
+                    template_name=m.template,
+                    body=f"Broadcast: {m.template}",
+                    status=WAStatus.sent,
+                ))
+                db.commit()
+                sent += 1
+            except Exception as exc:
+                logger.error(f"Broadcast msg to {m.phone} failed: {exc}")
+
+        logger.info(f"dispatch_due_messages sent {sent}/{len(due)} broadcast message(s)")
+        return {"dispatched": sent}
     finally:
         db.close()
 
