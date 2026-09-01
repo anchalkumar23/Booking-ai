@@ -74,7 +74,7 @@ function SignupForm() {
             <Label htmlFor="password">Password</Label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="password" type="password" required minLength={8} className="pl-10" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" />
+              <Input id="password" type="password" required minLength={12} className="pl-10" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 12 characters" />
             </div>
           </div>
           <Button type="submit" disabled={loading} className="w-full">

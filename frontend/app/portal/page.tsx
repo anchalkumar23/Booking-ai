@@ -40,8 +40,10 @@ export default function PortalPage() {
     setError("");
     setLoading(true);
     try {
-      const params = new URLSearchParams({ location_id: locationId, password });
-      const data = await apiFetch<Overview>(`/v1/portal/overview?${params}`);
+      const data = await apiFetch<Overview>("/v1/portal/overview", {
+        method: "POST",
+        body: JSON.stringify({ location_id: locationId, password }),
+      });
       setOverview(data);
     } catch (err) {
       if (err instanceof HttpError) setError(err.detail.message);

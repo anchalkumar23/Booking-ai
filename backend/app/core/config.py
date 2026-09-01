@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+    # Set COOKIE_SECURE=true in production (HTTPS) so auth cookies are never sent over HTTP.
+    # Kept false by default for local HTTP development.
+    cookie_secure: bool = False
 
     admin_email: str
     admin_password: str

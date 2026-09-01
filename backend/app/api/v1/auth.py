@@ -24,7 +24,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 ACCESS_COOKIE = "access_token"
 REFRESH_COOKIE = "refresh_token"
-COOKIE_OPTS = dict(httponly=True, samesite="lax", secure=False)
+COOKIE_OPTS = dict(httponly=True, samesite="lax", secure=settings.cookie_secure)
+
+
+def _client_ip(request: Request) -> str:
+    """Real client IP behind the nginx reverse proxy (falls back to the socket peer)."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
 
 
 def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
@@ -55,29 +63,28 @@ def _get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 @router.post("/login")
 def login(body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else "unknown"
+    # Throttle by real client IP AND by the targeted account, so neither an IP spraying
+    # many accounts nor many IPs hammering one account gets unlimited guesses.
+    ip = _client_ip(request)
+    email_key = f"email:{body.email.lower()}"
+    locked = {"message": "Too many attempts. Try again in 15 minutes.", "code": "locked_out"}
 
-    if is_locked_out(ip):
-        raise HTTPException(
-            status_code=429,
-            detail={"message": "Too many attempts. Try again in 15 minutes.", "code": "locked_out"},
-        )
+    if is_locked_out(ip) or is_locked_out(email_key):
+        raise HTTPException(status_code=429, detail=locked)
 
     user = authenticate_user(db, body.email, body.password)
     if not user:
-        count = record_failed_attempt(ip)
-        remaining = LOCKOUT_MAX_ATTEMPTS - count
-        if remaining <= 0:
-            raise HTTPException(
-                status_code=429,
-                detail={"message": "Too many attempts. Try again in 15 minutes.", "code": "locked_out"},
-            )
+        record_failed_attempt(ip)
+        count_email = record_failed_attempt(email_key)
+        if is_locked_out(ip) or count_email >= LOCKOUT_MAX_ATTEMPTS:
+            raise HTTPException(status_code=429, detail=locked)
         raise HTTPException(
             status_code=401,
             detail={"message": "Invalid email or password.", "code": "invalid_credentials"},
         )
 
     clear_failed_attempts(ip)
+    clear_failed_attempts(email_key)
     access = create_access_token(user.email)
     refresh = create_refresh_token(user.email)
     _set_auth_cookies(response, access, refresh)

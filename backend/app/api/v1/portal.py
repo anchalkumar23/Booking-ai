@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -8,17 +9,40 @@ from app.models.location import Location
 from app.models.appointment import Appointment
 from app.models.customer import Customer
 from app.models.lead import Lead
-from app.core.security import verify_password
+from app.models.call_log import CallLog
+from app.core.security import verify_password, is_locked_out, record_failed_attempt, clear_failed_attempts, LOCKOUT_MAX_ATTEMPTS
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
 
-def _verify_location_access(db: Session, location_id: uuid.UUID, password: str) -> Location:
+class PortalAuth(BaseModel):
+    location_id: uuid.UUID
+    password: str
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.headers.get("x-real-ip") or (request.client.host if request.client else "unknown")
+
+
+def _verify_location_access(db: Session, request: Request, location_id: uuid.UUID, password: str) -> Location:
+    # Rate-limit per (IP + location) so a portal password can't be brute-forced.
+    lock_key = f"portal:{_client_ip(request)}:{location_id}"
+    if is_locked_out(lock_key):
+        raise HTTPException(status_code=429, detail={"message": "Too many attempts. Try again in 15 minutes.", "code": "locked_out"})
+
     location = db.query(Location).filter(Location.id == location_id).first()
-    if not location:
-        raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
-    if not location.password_hash or not verify_password(password, location.password_hash):
+    if not location or not location.password_hash or not verify_password(password, location.password_hash):
+        count = record_failed_attempt(lock_key)
+        if not location:
+            raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
+        if count >= LOCKOUT_MAX_ATTEMPTS:
+            raise HTTPException(status_code=429, detail={"message": "Too many attempts. Try again in 15 minutes.", "code": "locked_out"})
         raise HTTPException(status_code=401, detail={"message": "Invalid location password.", "code": "invalid_password"})
+
+    clear_failed_attempts(lock_key)
     return location
 
 
@@ -29,12 +53,8 @@ def portal_locations(db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def portal_login(
-    location_id: uuid.UUID,
-    password: str,
-    db: Session = Depends(get_db),
-):
-    location = _verify_location_access(db, location_id, password)
+def portal_login(body: PortalAuth, request: Request, db: Session = Depends(get_db)):
+    location = _verify_location_access(db, request, body.location_id, body.password)
     return {
         "id": str(location.id),
         "name": location.name,
@@ -43,13 +63,10 @@ def portal_login(
     }
 
 
-@router.get("/overview")
-def portal_overview(
-    location_id: uuid.UUID = Query(...),
-    password: str = Query(...),
-    db: Session = Depends(get_db),
-):
-    location = _verify_location_access(db, location_id, password)
+@router.post("/overview")
+def portal_overview(body: PortalAuth, request: Request, db: Session = Depends(get_db)):
+    location_id = body.location_id
+    location = _verify_location_access(db, request, location_id, body.password)
 
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)

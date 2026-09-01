@@ -63,14 +63,14 @@ function ResetPasswordForm() {
             <Label htmlFor="password">New password</Label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="password" type="password" required minLength={8} className="pl-10" value={password} onChange={e => setPassword(e.target.value)} />
+              <Input id="password" type="password" required minLength={12} className="pl-10" value={password} onChange={e => setPassword(e.target.value)} />
             </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm">Confirm password</Label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="confirm" type="password" required minLength={8} className="pl-10" value={confirm} onChange={e => setConfirm(e.target.value)} />
+              <Input id="confirm" type="password" required minLength={12} className="pl-10" value={confirm} onChange={e => setConfirm(e.target.value)} />
             </div>
           </div>
           <Button type="submit" disabled={loading} className="w-full">
