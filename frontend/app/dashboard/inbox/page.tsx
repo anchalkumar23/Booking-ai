@@ -68,6 +68,13 @@ export default function InboxPage() {
     catch { /* non-fatal */ }
   }, [locationId]);
 
+  // Deep link: /dashboard/inbox?phone=... opens that conversation directly.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search).get("phone");
+    if (p) setActive(p);
+  }, []);
+
   useEffect(() => { loadConvos(); }, [loadConvos]);
   useEffect(() => { if (active) loadThread(active); }, [active, loadThread]);
   useEffect(() => { loadCanned(); }, [loadCanned]);
@@ -121,7 +128,7 @@ export default function InboxPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <header className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">💬 WhatsApp Inbox</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">WhatsApp Inbox</h1>
           <p className="mt-2 text-muted-foreground">Conversations with {activeLocation?.name}</p>
         </div>
         <div className="flex gap-2">
@@ -195,7 +202,7 @@ export default function InboxPage() {
                   <div key={i} className={`flex ${m.direction === "outbound" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${m.direction === "outbound" ? "bg-emerald-100 text-emerald-950" : "bg-secondary text-foreground"}`}>
                       {m.type === "template" && m.template_name && (
-                        <span className="mb-0.5 block text-[10px] font-medium text-muted-foreground">📋 {m.template_name}</span>
+                        <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Template · {m.template_name}</span>
                       )}
                       <span className="whitespace-pre-wrap">{m.body}</span>
                       <span className="mt-0.5 block text-right text-[10px] text-muted-foreground">

@@ -1,9 +1,22 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useActiveLocation } from "@/lib/location-context";
 import { PhoneCall, CalendarDays, Target, MessageCircle, type LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+
+// Phone numbers deep-link to their WhatsApp Inbox conversation.
+function PhoneLink({ phone }: { phone: string }) {
+  return (
+    <Link
+      href={`/dashboard/inbox?phone=${encodeURIComponent(phone)}`}
+      className="text-sm font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
+    >
+      {phone}
+    </Link>
+  );
+}
 
 interface CallStats {
   initiated: number; connected: number; completed: number;
@@ -146,16 +159,18 @@ export default function DashboardPage() {
               metaGood={data.whatsapp.delivery_rate >= 80} />
           </div>
 
-          {/* Activity: What's done, what's next */}
+          {/* Activity: what's next, and recent calls & messages.
+              items-start keeps each card at its natural height so a long list
+              never stretches the row and leaves the others padded with blank space. */}
           {activity && (
-            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
               <Card>
                 <CardContent className="p-5">
-                  <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">🔔 Up Next</h2>
+                  <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Up next</h2>
                   {activity.upcoming_tasks.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nothing due in the next 2 hours.</p>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="max-h-80 space-y-2.5 overflow-y-auto">
                       {activity.upcoming_tasks.map((t, i) => (
                         <div key={i} className="rounded-xl bg-secondary/60 px-3 py-2.5">
                           <p className="text-sm font-semibold text-foreground">{t.title}</p>
@@ -169,16 +184,16 @@ export default function DashboardPage() {
 
               <Card>
                 <CardContent className="p-5">
-                  <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">📞 Recent Calls</h2>
+                  <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent calls</h2>
                   {activity.recent_calls.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No calls yet.</p>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="max-h-80 space-y-2.5 overflow-y-auto">
                       {activity.recent_calls.map(c => (
                         <div key={c.id} className="rounded-xl bg-secondary/60 px-3 py-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">{c.phone}</span>
-                            <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+                          <div className="flex items-center justify-between gap-2">
+                            <PhoneLink phone={c.phone} />
+                            <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
                               {c.outcome ? c.outcome.replace("_", " ") : "pending"}
                             </span>
                           </div>
@@ -193,16 +208,16 @@ export default function DashboardPage() {
 
               <Card>
                 <CardContent className="p-5">
-                  <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">💬 Recent Messages</h2>
+                  <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent messages</h2>
                   {activity.recent_messages.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No messages sent yet.</p>
                   ) : (
-                    <div className="space-y-2.5">
+                    <div className="max-h-80 space-y-2.5 overflow-y-auto">
                       {activity.recent_messages.map(m => (
                         <div key={m.id} className="rounded-xl bg-secondary/60 px-3 py-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">{m.phone}</span>
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{m.status}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <PhoneLink phone={m.phone} />
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{m.status}</span>
                           </div>
                           <p className="mt-1 truncate text-xs text-muted-foreground">{m.body}</p>
                           <p className="mt-1 text-[11px] text-muted-foreground">{m.sent_at ? new Date(m.sent_at).toLocaleString() : ""}</p>
@@ -219,7 +234,7 @@ export default function DashboardPage() {
             {/* Call Funnel */}
             <Card>
               <CardContent className="p-5">
-                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">📞 Call Funnel</h2>
+                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">Call Funnel</h2>
                 <div className="space-y-3">
                   {funnelSteps.map(({ label, count, color }) => (
                     <div key={label} className="flex items-center gap-3">
@@ -251,7 +266,7 @@ export default function DashboardPage() {
             {/* Lead Pipeline */}
             <Card>
               <CardContent className="p-5">
-                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">🎯 Lead Pipeline</h2>
+                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">Lead Pipeline</h2>
                 <div className="space-y-3">
                   {pipeline.map(({ label, count, color }) => (
                     <div key={label} className="flex items-center gap-3">
@@ -276,14 +291,14 @@ export default function DashboardPage() {
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card>
               <CardContent className="p-5">
-                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">💬 WhatsApp Performance</h2>
+                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">WhatsApp Performance</h2>
                 <div className="space-y-2.5">
                   {[
-                    { label: "📤 Sent", value: data.whatsapp.sent },
-                    { label: "✅ Delivered", value: `${data.whatsapp.delivered} (${data.whatsapp.delivery_rate}%)` },
-                    { label: "👁 Read", value: `${data.whatsapp.read} (${data.whatsapp.read_rate}%)` },
-                    { label: "💬 Replied", value: `${data.whatsapp.replied} (${data.whatsapp.reply_rate}%)` },
-                    { label: "❌ Failed", value: data.whatsapp.failed },
+                    { label: "Sent", value: data.whatsapp.sent },
+                    { label: "Delivered", value: `${data.whatsapp.delivered} (${data.whatsapp.delivery_rate}%)` },
+                    { label: "Read", value: `${data.whatsapp.read} (${data.whatsapp.read_rate}%)` },
+                    { label: "Replied", value: `${data.whatsapp.replied} (${data.whatsapp.reply_rate}%)` },
+                    { label: "Failed", value: data.whatsapp.failed },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0">
                       <span className="text-muted-foreground">{label}</span>
@@ -296,15 +311,15 @@ export default function DashboardPage() {
 
             <Card>
               <CardContent className="p-5">
-                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">📅 Appointment Stats</h2>
+                <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">Appointment Stats</h2>
                 <div className="space-y-2.5">
                   {[
-                    { label: "📋 Total Booked", value: data.appointments.total, color: "text-violet-500" },
-                    { label: "⏳ Upcoming", value: data.appointments.scheduled, color: "text-blue-500" },
-                    { label: "✅ Completed", value: data.appointments.completed, color: "text-emerald-600" },
-                    { label: "❌ Cancelled", value: data.appointments.cancelled, color: "text-slate-400" },
-                    { label: "🚫 No Show", value: data.appointments.no_show, color: "text-rose-500" },
-                    { label: "🔔 Reminders Sent", value: data.appointments.reminders_sent, color: "text-amber-500" },
+                    { label: "Total Booked", value: data.appointments.total, color: "text-violet-500" },
+                    { label: "Upcoming", value: data.appointments.scheduled, color: "text-blue-500" },
+                    { label: "Completed", value: data.appointments.completed, color: "text-emerald-600" },
+                    { label: "Cancelled", value: data.appointments.cancelled, color: "text-slate-400" },
+                    { label: "No Show", value: data.appointments.no_show, color: "text-rose-500" },
+                    { label: "Reminders Sent", value: data.appointments.reminders_sent, color: "text-amber-500" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="flex items-center justify-between border-b border-border/60 py-1.5 text-sm last:border-0">
                       <span className="text-muted-foreground">{label}</span>

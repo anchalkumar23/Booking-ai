@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, BookOpen, Lock } from "lucide-react";
+import { MessageCircle, BookOpen, Lock, Dumbbell, Scissors, UtensilsCrossed, Building2, type LucideIcon } from "lucide-react";
 
 interface Location {
   id: string; name: string; type: string; city: string;
@@ -20,7 +20,11 @@ interface Location {
   whatsapp_display_phone: string | null;
 }
 
-const TYPE_ICONS: Record<string, string> = { gym: "🏋️", salon: "💇", restaurant: "🍽️" };
+const TYPE_ICON: Record<string, LucideIcon> = { gym: Dumbbell, salon: Scissors, restaurant: UtensilsCrossed };
+function TypeIcon({ type, className }: { type: string; className?: string }) {
+  const Icon = TYPE_ICON[type] || Building2;
+  return <Icon className={className ?? "h-5 w-5"} strokeWidth={1.75} />;
+}
 const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function LocationsPage() {
@@ -124,7 +128,7 @@ export default function LocationsPage() {
 
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">🏢 Locations</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Locations</h1>
           <p className="mt-2 text-muted-foreground">{locations.length} business locations · each has its own WhatsApp &amp; AI knowledge</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>+ Add Location</Button>
@@ -134,7 +138,7 @@ export default function LocationsPage() {
         <div className="text-muted-foreground">Loading…</div>
       ) : locations.length === 0 ? (
         <Card className="p-16 text-center">
-          <div className="mb-4 text-5xl">🏢</div>
+          <div className="mb-4 flex justify-center text-muted-foreground"><Building2 className="h-10 w-10" strokeWidth={1.5} /></div>
           <div className="mb-2 font-serif text-lg font-semibold tracking-tight text-foreground">No locations yet</div>
           <Button onClick={() => setShowAdd(true)}>+ Add Location</Button>
         </Card>
@@ -144,7 +148,7 @@ export default function LocationsPage() {
             <Card key={l.id} className="p-5">
               <div className="mb-3 flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="text-2xl">{TYPE_ICONS[l.type] || "🏢"}</div>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-foreground"><TypeIcon type={l.type} /></div>
                   <div>
                     <div className="font-serif text-base font-semibold tracking-tight text-foreground">{l.name}</div>
                     <div className="text-xs text-muted-foreground">{l.city}</div>
@@ -154,8 +158,8 @@ export default function LocationsPage() {
               </div>
 
               <div className="mb-4 flex flex-col gap-1 text-sm text-muted-foreground">
-                <div>📞 {l.phone}</div>
-                <div>🕐 {l.timezone}</div>
+                <div>{l.phone}</div>
+                <div>{l.timezone}</div>
                 {activeLocation?.id === l.id && (
                   <div className="text-xs font-medium text-emerald-600">● Currently active</div>
                 )}
@@ -261,9 +265,9 @@ export default function LocationsPage() {
               <div>
                 <Label className="mb-1.5 block text-sm font-medium text-foreground">Type *</Label>
                 <select value={form.type} onChange={e => setForm({...form,type:e.target.value})} className={selectClass}>
-                  <option value="gym">🏋️ Gym</option>
-                  <option value="salon">💇 Salon</option>
-                  <option value="restaurant">🍽️ Restaurant</option>
+                  <option value="gym">Gym</option>
+                  <option value="salon">Salon</option>
+                  <option value="restaurant">Restaurant</option>
                 </select>
               </div>
             </div>

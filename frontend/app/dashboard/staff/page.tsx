@@ -99,7 +99,7 @@ export default function StaffPage() {
 
       <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">👤 Staff</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Staff</h1>
           <p className="mt-2 text-muted-foreground">Staff at {activeLocation?.name}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>+ Add Staff</Button>

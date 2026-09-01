@@ -113,7 +113,7 @@ export default function AppointmentsPage() {
 
       <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📅 Appointments</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Appointments</h1>
           <p className="mt-2 text-muted-foreground">Appointments at {activeLocation?.name}</p>
         </div>
         <Button onClick={() => setShowBook(true)}>+ Book Appointment</Button>
@@ -203,7 +203,9 @@ export default function AppointmentsPage() {
                 {slots.map(s => <option key={s.datetime} value={s.datetime}>{s.time} ({s.available_staff} staff free)</option>)}
               </select>
               {locationId && form.date && slots.length === 0 && !loadingSlots && (
-                <p className="mt-1 text-xs text-rose-500">No slots available on this date.</p>
+                <p className="mt-1 text-xs text-rose-500">
+                  No open slots. Slots come from your staff&apos;s working hours — add a staff member with hours on the <a href="/dashboard/staff" className="underline underline-offset-2">Staff</a> page, or pick another date.
+                </p>
               )}
             </div>
             <Button

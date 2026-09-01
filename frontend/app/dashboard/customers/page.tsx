@@ -67,7 +67,7 @@ export default function CustomersPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">👥 Customers</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Customers</h1>
           <p className="mt-2 text-muted-foreground">{customers.length} customers at {activeLocation?.name}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>+ Add Customer</Button>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Lock, Plus, ArrowRight, Building2 } from "lucide-react";
+import { MapPin, Lock, Plus, ArrowRight, Building2, Dumbbell, Scissors, UtensilsCrossed, type LucideIcon } from "lucide-react";
 import { apiFetch, HttpError } from "@/lib/api";
 import { Toast } from "@/components/Toast";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,11 @@ interface Location {
   is_active: boolean;
 }
 
-const TYPE_ICONS: Record<string, string> = { gym: "🏋️", salon: "💇", restaurant: "🍽️" };
+const TYPE_ICON: Record<string, LucideIcon> = { gym: Dumbbell, salon: Scissors, restaurant: UtensilsCrossed };
+function TypeIcon({ type }: { type: string }) {
+  const Icon = TYPE_ICON[type] || Building2;
+  return <Icon className="h-5 w-5" strokeWidth={1.75} />;
+}
 const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 function SelectLocationContent() {
@@ -138,7 +142,7 @@ function SelectLocationContent() {
                     selectedId === l.id ? "border-primary bg-primary/5" : "border-border hover:bg-secondary/60"
                   }`}
                 >
-                  <span className="text-xl">{TYPE_ICONS[l.type] || "🏢"}</span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-foreground"><TypeIcon type={l.type} /></span>
                   <div>
                     <div className="font-medium text-foreground">{l.name}</div>
                     <div className="text-xs text-muted-foreground">{l.city}</div>
@@ -196,9 +200,9 @@ function SelectLocationContent() {
               <div>
                 <Label className="mb-1.5 block">Type *</Label>
                 <select value={createForm.type} onChange={e => setCreateForm({ ...createForm, type: e.target.value })} className={selectClass}>
-                  <option value="gym">🏋️ Gym</option>
-                  <option value="salon">💇 Salon</option>
-                  <option value="restaurant">🍽️ Restaurant</option>
+                  <option value="gym">Gym</option>
+                  <option value="salon">Salon</option>
+                  <option value="restaurant">Restaurant</option>
                 </select>
               </div>
             </div>

@@ -48,7 +48,7 @@ function ChannelFields({
       <div>
         <label className="mb-1.5 block text-sm font-medium text-foreground">Channel</label>
         <div className="grid grid-cols-2 gap-2">
-          {[["call", "📞 Voice calls"], ["whatsapp", "💬 WhatsApp"]].map(([val, label]) => (
+          {[["call", "Voice calls"], ["whatsapp", "WhatsApp"]].map(([val, label]) => (
             <button
               key={val}
               type="button"
@@ -281,17 +281,17 @@ export default function CampaignsPage() {
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📣 Campaigns</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Campaigns</h1>
           <p className="mt-2 text-muted-foreground">Bulk calls &amp; WhatsApp broadcasts for {activeLocation?.name}</p>
         </div>
         <div className="flex gap-2.5">
-          <Button variant="outline" onClick={() => setShowImport(true)}>⬆ Import CSV / Excel</Button>
+          <Button variant="outline" onClick={() => setShowImport(true)}>Import CSV / Excel</Button>
           <Button onClick={() => setShowNew(true)}>+ New Campaign</Button>
         </div>
       </header>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        💡 Pick a channel per campaign — <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped.
+        Pick a channel per campaign — <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped.
       </div>
 
       {loading ? (
@@ -319,7 +319,7 @@ export default function CampaignsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${c.channel === "whatsapp" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}`}>
-                      {c.channel === "whatsapp" ? "💬 WhatsApp" : "📞 Call"}
+                      {c.channel === "whatsapp" ? "WhatsApp" : "Call"}
                     </span>
                   </td>
                   <td className="px-4 py-3">

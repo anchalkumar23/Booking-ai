@@ -117,7 +117,7 @@ export default function LeadsPage() {
   async function convertLead(id: string) {
     try {
       await apiFetch(`/v1/leads/${id}/convert`, { method:"PATCH" });
-      setToast({message:"Lead converted ✓",type:"success"});
+      setToast({message:"Lead converted",type:"success"});
       fetchData();
     } catch { setToast({message:"Failed",type:"error"}); }
   }
@@ -132,12 +132,12 @@ export default function LeadsPage() {
 
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">🎯 Leads</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Leads</h1>
           <p className="mt-2 text-muted-foreground">Leads at {activeLocation?.name}</p>
         </div>
         <div className="flex gap-2.5">
           <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
-            {importing ? "Importing…" : "⬆ Import CSV / Excel"}
+            {importing ? "Importing…" : "Import CSV / Excel"}
           </Button>
           <Button onClick={() => setShowAdd(true)}>+ Add Lead</Button>
         </div>
@@ -167,7 +167,7 @@ export default function LeadsPage() {
       </div>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        💡 <b>CSV / Excel Import:</b> Columns needed: <code>full_name</code>, <code>phone</code> (with +91), optional: <code>language</code> (en/hi/ta), <code>source</code>. Bulk calls are staggered 1 min apart automatically.
+        <b>CSV / Excel import:</b> Columns needed: <code>full_name</code>, <code>phone</code> (with +91), optional: <code>language</code> (en/hi/ta), <code>source</code>. Bulk calls are staggered 1 min apart automatically.
       </div>
 
       {/* Table */}
@@ -213,12 +213,12 @@ export default function LeadsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {!l.wa_stopped && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">💬 Active</span>}
-                      {!l.call_stopped && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">📞 Active</span>}
+                      {!l.wa_stopped && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">WhatsApp active</span>}
+                      {!l.call_stopped && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">Calls active</span>}
                     </div>
                     {l.wa_last_error && (
                       <div className="mt-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700" title={l.wa_last_error}>
-                        ⚠ {l.wa_last_error}
+                        {l.wa_last_error}
                       </div>
                     )}
                   </td>
@@ -273,7 +273,7 @@ export default function LeadsPage() {
               <Input type="date" value={form.follow_up_date} onChange={e => setForm({...form,follow_up_date:e.target.value})} />
             </div>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-700">
-              ✅ Adding this lead will <b>automatically start</b> the 4-step WhatsApp sequence and a Bolna cold call.
+              Adding this lead will <b>automatically start</b> the 4-step WhatsApp sequence and a Bolna cold call.
             </div>
             <Button onClick={addLead} disabled={submitting || !form.full_name || !form.phone} className="w-full">
               {submitting ? "Adding…" : "Add Lead & Start Outreach"}

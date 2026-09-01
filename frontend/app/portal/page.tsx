@@ -20,7 +20,12 @@ interface Overview {
   recent_calls: CallSummary[];
 }
 
-const TYPE_ICONS: Record<string, string> = { gym: "🏋️", salon: "💇", restaurant: "🍽️" };
+import { Dumbbell, Scissors, UtensilsCrossed, Building2, type LucideIcon } from "lucide-react";
+const TYPE_ICON: Record<string, LucideIcon> = { gym: Dumbbell, salon: Scissors, restaurant: UtensilsCrossed };
+function TypeIcon({ type }: { type: string }) {
+  const Icon = TYPE_ICON[type] || Building2;
+  return <Icon className="h-5 w-5" strokeWidth={1.75} />;
+}
 const selectClass = "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
 export default function PortalPage() {
@@ -57,7 +62,7 @@ export default function PortalPage() {
     return (
       <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
         <Card className="w-full max-w-md p-8">
-          <h1 className="font-serif text-3xl tracking-tight text-foreground">📍 Location Portal</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground">Location Portal</h1>
           <p className="mt-2 text-muted-foreground">Sign in with your location password to view today&apos;s tasks and calls.</p>
 
           <form onSubmit={handleLogin} className="mt-8 space-y-5">
@@ -66,7 +71,7 @@ export default function PortalPage() {
               <select id="location" value={locationId} onChange={e => setLocationId(e.target.value)} required className={selectClass}>
                 <option value="">Select your location…</option>
                 {locations.map(l => (
-                  <option key={l.id} value={l.id}>{TYPE_ICONS[l.type] || "🏢"} {l.name} — {l.city}</option>
+                  <option key={l.id} value={l.id}>{l.name} — {l.city}</option>
                 ))}
               </select>
             </div>
@@ -93,8 +98,9 @@ export default function PortalPage() {
     <div className="mx-auto max-w-4xl px-5 py-8 sm:px-8">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">
-            {TYPE_ICONS[overview.location.type] || "🏢"} {overview.location.name}
+          <h1 className="flex items-center gap-2.5 font-serif text-3xl tracking-tight text-foreground sm:text-4xl">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-foreground"><TypeIcon type={overview.location.type} /></span>
+            {overview.location.name}
           </h1>
           <p className="mt-2 text-muted-foreground">{overview.location.city}</p>
         </div>
@@ -104,7 +110,7 @@ export default function PortalPage() {
       <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardContent className="p-5">
-            <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">🔔 Upcoming Tasks</h2>
+            <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">Upcoming Tasks</h2>
             {overview.upcoming_tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing due in the next 2 hours.</p>
             ) : (
@@ -122,7 +128,7 @@ export default function PortalPage() {
 
         <Card>
           <CardContent className="p-5">
-            <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">📅 Today&apos;s Appointments</h2>
+            <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">Today&apos;s Appointments</h2>
             {overview.today_appointments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No appointments scheduled today.</p>
             ) : (
@@ -145,7 +151,7 @@ export default function PortalPage() {
 
         <Card>
           <CardContent className="p-5">
-            <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">📞 Recent Calls</h2>
+            <h2 className="mb-4 font-serif text-lg font-semibold tracking-tight">Recent Calls</h2>
             {overview.recent_calls.length === 0 ? (
               <p className="text-sm text-muted-foreground">No calls yet.</p>
             ) : (

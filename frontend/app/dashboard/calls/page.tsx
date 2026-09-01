@@ -88,7 +88,7 @@ export default function CallsPage() {
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">📞 Call History</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground sm:text-4xl">Call History</h1>
           <p className="mt-2 text-muted-foreground">{total} calls total</p>
         </div>
         <Button variant="outline" onClick={fetchData}>Refresh</Button>
@@ -172,13 +172,13 @@ export default function CallsPage() {
       {total > LIMIT && (
         <div className="mt-5 flex items-center justify-center gap-3">
           <Button variant="outline" disabled={offset === 0} onClick={() => setOffset(o => Math.max(0, o - LIMIT))}>
-            ← Previous
+            Previous
           </Button>
           <span className="text-sm text-muted-foreground">
             {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
           </span>
           <Button variant="outline" disabled={offset + LIMIT >= total} onClick={() => setOffset(o => o + LIMIT)}>
-            Next →
+            Next
           </Button>
         </div>
       )}
@@ -198,7 +198,7 @@ export default function CallsPage() {
                   {transcript.phone} · {transcript.purpose} · {formatTime(transcript.called_at)}
                 </p>
               </div>
-              <button onClick={() => setTranscript(null)} className="text-xl text-muted-foreground hover:text-foreground">✕</button>
+              <button onClick={() => setTranscript(null)} aria-label="Close" className="text-sm font-medium text-muted-foreground hover:text-foreground">Close</button>
             </div>
 
             <div className="mb-4 flex flex-wrap gap-2">
