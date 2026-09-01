@@ -177,6 +177,7 @@ async def bolna_call_outcome(request: Request, db: Session = Depends(get_db)):
         call_log = CallLog(
             bolna_call_id=call_id,
             phone=phone,
+            campaign_id=user_data.get("campaign_id"),
             direction=CallDirection.outbound,
             purpose=purpose,
             outcome=outcome,

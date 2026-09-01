@@ -28,6 +28,7 @@ class WhatsAppMessage(UUIDMixin, Base):
 
     wa_message_id: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    campaign_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     direction: Mapped[WADirection] = mapped_column(SAEnum(WADirection), nullable=False)
     message_type: Mapped[WAMessageType] = mapped_column(SAEnum(WAMessageType), nullable=False)
     template_name: Mapped[str | None] = mapped_column(String, nullable=True)

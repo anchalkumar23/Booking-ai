@@ -15,6 +15,11 @@ interface Campaign {
   created_at: string;
 }
 interface WaTemplate { name: string; language: string; category?: string; variables: number; body?: string; }
+interface Stats {
+  id: string; name: string; channel: string; total_targets: number; queued: number;
+  whatsapp?: { sent: number; delivered: number; read: number; failed: number };
+  calls?: { total: number; outcomes: Record<string, number> };
+}
 
 const AUDIENCES = [
   { value: "all_customers", label: "All customers at this location" },
@@ -132,6 +137,17 @@ export default function CampaignsPage() {
 
   const [templates, setTemplates] = useState<WaTemplate[]>([]);
   const [waConnected, setWaConnected] = useState(false);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  async function openStats(id: string) {
+    setStatsLoading(true);
+    setStats(null);
+    try {
+      setStats(await apiFetch<Stats>(`/v1/campaigns/${id}/stats`));
+    } catch { setToast({ message: "Failed to load stats", type: "error" }); }
+    finally { setStatsLoading(false); }
+  }
 
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -291,7 +307,7 @@ export default function CampaignsPage() {
       </header>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        Pick a channel per campaign — <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped.
+        Pick a channel per campaign — <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped. <b>Click any campaign</b> to see delivery stats.
       </div>
 
       {loading ? (
@@ -310,7 +326,7 @@ export default function CampaignsPage() {
             </thead>
             <tbody>
               {campaigns.map(c => (
-                <tr key={c.id} className="border-b border-border/60 last:border-0 align-top">
+                <tr key={c.id} onClick={() => openStats(c.id)} className="cursor-pointer border-b border-border/60 align-top transition-colors last:border-0 hover:bg-secondary/40">
                   <td className="px-4 py-3">
                     <span className="font-semibold text-foreground">{c.name}</span>
                     <p className="mt-0.5 max-w-xs truncate text-xs text-muted-foreground" title={c.wa_template || c.message}>
@@ -457,6 +473,64 @@ export default function CampaignsPage() {
               {importing ? "Uploading & launching…" : importForm.channel === "whatsapp" ? "Upload & Send WhatsApp" : "Upload & Start Calling"}
             </Button>
           </div>
+        </Modal>
+      )}
+
+      {(stats || statsLoading) && (
+        <Modal title={stats ? `Delivery — ${stats.name}` : "Delivery"} onClose={() => setStats(null)}>
+          {statsLoading || !stats ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : stats.channel === "whatsapp" && stats.whatsapp ? (
+            <div className="flex flex-col gap-3">
+              {(() => {
+                const w = stats.whatsapp!;
+                const base = Math.max(stats.queued, w.sent, 1);
+                const rows = [
+                  { label: "Queued", value: stats.queued, color: "bg-slate-400" },
+                  { label: "Sent", value: w.sent, color: "bg-blue-400" },
+                  { label: "Delivered", value: w.delivered, color: "bg-violet-400" },
+                  { label: "Read", value: w.read, color: "bg-emerald-500" },
+                ];
+                return rows.map(r => (
+                  <div key={r.label} className="flex items-center gap-3">
+                    <span className="w-20 shrink-0 text-sm text-muted-foreground">{r.label}</span>
+                    <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                      <div className={`h-full rounded-full ${r.color}`} style={{ width: `${Math.round((r.value / base) * 100)}%` }} />
+                    </div>
+                    <span className="w-10 shrink-0 text-right text-sm font-semibold text-foreground">{r.value}</span>
+                  </div>
+                ));
+              })()}
+              <div className="mt-1 flex items-center justify-between rounded-xl border border-border bg-secondary/40 px-3.5 py-2.5 text-sm">
+                <span className="text-muted-foreground">Failed</span>
+                <span className="font-semibold text-rose-600">{stats.whatsapp.failed}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.whatsapp.sent === 0
+                  ? "No delivery data yet — statuses arrive from Meta within a minute or two of sending."
+                  : "Delivered/Read update as Meta reports back. A number stuck at Sent may be in Meta's experiment (130472)."}
+              </p>
+            </div>
+          ) : stats.channel === "call" && stats.calls ? (
+            <div className="flex flex-col gap-2.5">
+              <div className="flex items-center justify-between border-b border-border pb-2 text-sm">
+                <span className="text-muted-foreground">Calls with a result</span>
+                <span className="font-semibold text-foreground">{stats.calls.total} / {stats.queued}</span>
+              </div>
+              {Object.keys(stats.calls.outcomes).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No call results yet. Outcomes appear once Bolna reports each call back (needs the Bolna webhook configured).</p>
+              ) : (
+                Object.entries(stats.calls.outcomes).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between text-sm">
+                    <span className="capitalize text-muted-foreground">{k.replace(/_/g, " ")}</span>
+                    <span className="font-semibold text-foreground">{v}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <p className="py-6 text-center text-sm text-muted-foreground">No stats available.</p>
+          )}
         </Modal>
       )}
     </div>

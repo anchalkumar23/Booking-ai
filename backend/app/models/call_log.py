@@ -35,6 +35,7 @@ class CallLog(UUIDMixin, Base):
 
     bolna_call_id: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    campaign_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     direction: Mapped[CallDirection] = mapped_column(SAEnum(CallDirection), nullable=False)
     purpose: Mapped[CallPurpose] = mapped_column(SAEnum(CallPurpose), nullable=False)
     outcome: Mapped[CallOutcome | None] = mapped_column(SAEnum(CallOutcome), nullable=True)

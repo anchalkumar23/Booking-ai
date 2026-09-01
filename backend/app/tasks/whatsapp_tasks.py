@@ -332,6 +332,7 @@ def dispatch_due_messages():
                 db.add(WhatsAppMessage(
                     wa_message_id=wa_message_id,
                     phone=m.phone,
+                    campaign_id=m.campaign_id,
                     direction=WADirection.outbound,
                     message_type=WAMessageType.template,
                     template_name=m.template,

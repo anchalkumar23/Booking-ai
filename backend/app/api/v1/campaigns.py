@@ -7,10 +7,13 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
 from app.core.database import get_db
 from app.api.v1.auth import _get_current_user
 from app.models.promo_campaign import PromoCampaign, CampaignChannel
 from app.models.location import Location
+from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAStatus
+from app.models.call_log import CallLog
 from app.schemas.promo_campaign import CampaignCreate, CampaignPreview, CampaignOut
 from app.integrations.whatsapp import list_approved_templates, credentials_from_location
 from app.services.promo_campaign import (
@@ -50,6 +53,46 @@ def list_campaigns(
     if location_id:
         q = q.filter(PromoCampaign.location_id == location_id)
     return q.order_by(PromoCampaign.created_at.desc()).all()
+
+
+@router.get("/{campaign_id}/stats")
+def campaign_stats(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """Delivery/outcome breakdown for one campaign, for the delivery dashboard."""
+    c = db.query(PromoCampaign).filter(PromoCampaign.id == campaign_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail={"message": "Campaign not found.", "code": "not_found"})
+
+    cid = str(campaign_id)
+    out = {
+        "id": cid, "name": c.name, "channel": c.channel.value,
+        "total_targets": c.total_targets, "queued": c.messages_queued if c.channel == CampaignChannel.whatsapp else c.calls_queued,
+    }
+
+    if c.channel == CampaignChannel.whatsapp:
+        rows = dict(
+            db.query(WhatsAppMessage.status, func.count(WhatsAppMessage.id))
+            .filter(WhatsAppMessage.campaign_id == cid, WhatsAppMessage.direction == WADirection.outbound)
+            .group_by(WhatsAppMessage.status).all()
+        )
+        failed = rows.get(WAStatus.failed, 0)
+        read = rows.get(WAStatus.read, 0)
+        delivered = rows.get(WAStatus.delivered, 0) + read
+        sent = sum(rows.values())  # every outbound broadcast row
+        out["whatsapp"] = {"sent": sent, "delivered": delivered, "read": read, "failed": failed}
+    else:
+        rows = dict(
+            db.query(CallLog.outcome, func.count(CallLog.id))
+            .filter(CallLog.campaign_id == cid)
+            .group_by(CallLog.outcome).all()
+        )
+        outcomes = {(k.value if k else "pending"): v for k, v in rows.items()}
+        out["calls"] = {"total": sum(rows.values()), "outcomes": outcomes}
+
+    return out
 
 
 @router.post("/preview")
