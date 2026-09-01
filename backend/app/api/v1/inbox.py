@@ -11,11 +11,19 @@ from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAMessageT
 from app.models.customer import Customer
 from app.models.lead import Lead
 from app.models.location import Location
+from app.models.inbox_extras import ConversationState, ConvStatus, CannedReply
 from app.integrations.whatsapp import send_text_message, credentials_from_location
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
 WINDOW = timedelta(hours=24)
+
+
+def _status_map(db: Session, phones: list[str]) -> dict:
+    if not phones:
+        return {}
+    rows = db.query(ConversationState).filter(ConversationState.phone.in_(phones)).all()
+    return {r.phone: r.status.value for r in rows}
 
 
 def _name_map(db: Session, phones: list[str]) -> dict:
@@ -32,10 +40,11 @@ def _name_map(db: Session, phones: list[str]) -> dict:
 
 @router.get("/conversations")
 def list_conversations(
+    status: Optional[str] = None,
     db: Session = Depends(get_db),
     _=Depends(_get_current_user),
 ):
-    """Most-recent WhatsApp conversation per phone (newest first)."""
+    """Most-recent WhatsApp conversation per phone (newest first). Optional ?status=open|resolved."""
     # Pull recent messages and fold to one row per phone in Python (fine for v1 volumes).
     rows = (
         db.query(WhatsAppMessage)
@@ -58,11 +67,15 @@ def list_conversations(
             last_inbound[m.phone] = m.sent_at
 
     names = _name_map(db, list(convos.keys()))
+    statuses = _status_map(db, list(convos.keys()))
     out = []
     for phone, c in convos.items():
         li = last_inbound.get(phone)
         c["name"] = names.get(phone)
         c["within_window"] = bool(li and (now - li) < WINDOW)
+        c["status"] = statuses.get(phone, "open")
+        if status and c["status"] != status:
+            continue
         out.append(c)
     out.sort(key=lambda x: x["last_at"] or "", reverse=True)
     return {"conversations": out}
@@ -89,6 +102,7 @@ def get_conversation(
     return {
         "phone": phone,
         "name": names.get(phone),
+        "status": _status_map(db, [phone]).get(phone, "open"),
         "within_window": bool(last_inbound and (now - last_inbound) < WINDOW),
         "messages": [
             {
@@ -152,3 +166,73 @@ def reply_conversation(
     db.add(msg)
     db.commit()
     return {"status": "sent", "wa_message_id": wa_message_id}
+
+
+class StatusBody(BaseModel):
+    status: ConvStatus
+
+
+@router.post("/conversations/{phone}/status")
+def set_status(
+    phone: str,
+    body: StatusBody,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    state = db.query(ConversationState).filter(ConversationState.phone == phone).first()
+    if not state:
+        state = ConversationState(phone=phone, status=body.status)
+        db.add(state)
+    else:
+        state.status = body.status
+        state.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"phone": phone, "status": body.status.value}
+
+
+# ---- Canned (quick) replies ----
+
+@router.get("/canned")
+def list_canned(
+    location_id: Optional[uuid.UUID] = None,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    q = db.query(CannedReply)
+    if location_id:
+        q = q.filter((CannedReply.location_id == location_id) | (CannedReply.location_id.is_(None)))
+    rows = q.order_by(CannedReply.created_at.desc()).all()
+    return {"canned": [{"id": str(r.id), "title": r.title, "body": r.body} for r in rows]}
+
+
+class CannedBody(BaseModel):
+    location_id: Optional[uuid.UUID] = None
+    title: str
+    body: str
+
+
+@router.post("/canned", status_code=201)
+def create_canned(
+    body: CannedBody,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    if not body.title.strip() or not body.body.strip():
+        raise HTTPException(status_code=400, detail={"message": "Title and body are required.", "code": "invalid"})
+    r = CannedReply(location_id=body.location_id, title=body.title.strip(), body=body.body.strip())
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    return {"id": str(r.id), "title": r.title, "body": r.body}
+
+
+@router.delete("/canned/{canned_id}", status_code=204)
+def delete_canned(
+    canned_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    r = db.query(CannedReply).filter(CannedReply.id == canned_id).first()
+    if r:
+        db.delete(r)
+        db.commit()
