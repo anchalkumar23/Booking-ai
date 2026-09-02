@@ -149,6 +149,16 @@ export default function CampaignsPage() {
     finally { setStatsLoading(false); }
   }
 
+  async function deleteCampaign(id: string, name: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`Delete campaign "${name}"? This only removes it from history — already-sent calls/messages aren't affected.`)) return;
+    try {
+      await apiFetch(`/v1/campaigns/${id}`, { method: "DELETE" });
+      setCampaigns(prev => prev.filter(c => c.id !== id));
+      setToast({ message: "Campaign deleted", type: "success" });
+    } catch { setToast({ message: "Failed to delete campaign", type: "error" }); }
+  }
+
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importForm, setImportForm] = useState({ name: "", message: "", channel: "call", wa_template: "", wa_params: [] as string[] });
@@ -319,7 +329,7 @@ export default function CampaignsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {["Name", "Channel", "Audience", "Targets", "Queued", "Status", "Created"].map(h => (
+                {["Name", "Channel", "Audience", "Targets", "Queued", "Status", "Created", ""].map(h => (
                   <th key={h} className="px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -355,6 +365,14 @@ export default function CampaignsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={e => deleteCampaign(c.id, c.name, e)}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}

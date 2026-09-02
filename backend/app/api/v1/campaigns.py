@@ -55,6 +55,21 @@ def list_campaigns(
     return q.order_by(PromoCampaign.created_at.desc()).all()
 
 
+@router.delete("/{campaign_id}", status_code=204)
+def delete_campaign(
+    campaign_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """Delete a campaign's history record. Any already-dispatched calls/messages are
+    unaffected — this only removes the row from the campaign history list."""
+    c = db.query(PromoCampaign).filter(PromoCampaign.id == campaign_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail={"message": "Campaign not found.", "code": "not_found"})
+    db.delete(c)
+    db.commit()
+
+
 @router.get("/{campaign_id}/stats")
 def campaign_stats(
     campaign_id: uuid.UUID,
