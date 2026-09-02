@@ -19,11 +19,11 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
 WINDOW = timedelta(hours=24)
 
 
-def _status_map(db: Session, phones: list[str]) -> dict:
+def _state_map(db: Session, phones: list[str]) -> dict:
     if not phones:
         return {}
     rows = db.query(ConversationState).filter(ConversationState.phone.in_(phones)).all()
-    return {r.phone: r.status.value for r in rows}
+    return {r.phone: r for r in rows}
 
 
 def _name_map(db: Session, phones: list[str]) -> dict:
@@ -67,13 +67,15 @@ def list_conversations(
             last_inbound[m.phone] = m.sent_at
 
     names = _name_map(db, list(convos.keys()))
-    statuses = _status_map(db, list(convos.keys()))
+    states = _state_map(db, list(convos.keys()))
     out = []
     for phone, c in convos.items():
         li = last_inbound.get(phone)
+        state = states.get(phone)
         c["name"] = names.get(phone)
         c["within_window"] = bool(li and (now - li) < WINDOW)
-        c["status"] = statuses.get(phone, "open")
+        c["status"] = state.status.value if state else "open"
+        c["ai_enabled"] = state.ai_enabled if state else True
         if status and c["status"] != status:
             continue
         out.append(c)
@@ -99,10 +101,12 @@ def get_conversation(
         if m.direction == WADirection.inbound:
             last_inbound = m.sent_at
     names = _name_map(db, [phone])
+    state = _state_map(db, [phone]).get(phone)
     return {
         "phone": phone,
         "name": names.get(phone),
-        "status": _status_map(db, [phone]).get(phone, "open"),
+        "status": state.status.value if state else "open",
+        "ai_enabled": state.ai_enabled if state else True,
         "within_window": bool(last_inbound and (now - last_inbound) < WINDOW),
         "messages": [
             {
@@ -188,6 +192,30 @@ def set_status(
         state.updated_at = datetime.now(timezone.utc)
     db.commit()
     return {"phone": phone, "status": body.status.value}
+
+
+class AiToggleBody(BaseModel):
+    ai_enabled: bool
+
+
+@router.post("/conversations/{phone}/ai")
+def set_ai_enabled(
+    phone: str,
+    body: AiToggleBody,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """Pause or resume the AI assistant's auto-replies for one conversation.
+    A paused conversation still shows in the inbox for a human to reply manually."""
+    state = db.query(ConversationState).filter(ConversationState.phone == phone).first()
+    if not state:
+        state = ConversationState(phone=phone, ai_enabled=body.ai_enabled)
+        db.add(state)
+    else:
+        state.ai_enabled = body.ai_enabled
+        state.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"phone": phone, "ai_enabled": body.ai_enabled}
 
 
 # ---- Canned (quick) replies ----

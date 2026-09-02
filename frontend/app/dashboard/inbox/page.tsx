@@ -10,6 +10,7 @@ import { useActiveLocation } from "@/lib/location-context";
 interface Convo {
   phone: string; name: string | null; last_body: string;
   last_direction: string; last_at: string | null; within_window: boolean; status: string;
+  ai_enabled: boolean;
 }
 interface Msg {
   direction: string; type: string; template_name: string | null;
@@ -17,6 +18,7 @@ interface Msg {
 }
 interface Thread {
   phone: string; name: string | null; status: string; within_window: boolean; messages: Msg[];
+  ai_enabled: boolean;
 }
 interface Canned { id: string; title: string; body: string; }
 
@@ -106,6 +108,18 @@ export default function InboxPage() {
     } catch { setToast({ message: "Failed to update status", type: "error" }); }
   }
 
+  async function setAiEnabled(next: boolean) {
+    if (!active) return;
+    try {
+      await apiFetch(`/v1/inbox/conversations/${encodeURIComponent(active)}/ai`, {
+        method: "POST", body: JSON.stringify({ ai_enabled: next }),
+      });
+      await loadThread(active);
+      loadConvos();
+      setToast({ message: next ? "AI resumed for this conversation" : "AI paused — replies here are manual now", type: "success" });
+    } catch { setToast({ message: "Failed to update AI setting", type: "error" }); }
+  }
+
   async function addCanned() {
     if (!newCanned.title.trim() || !newCanned.body.trim()) return;
     try {
@@ -170,6 +184,7 @@ export default function InboxPage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {c.status === "resolved" && <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700">resolved</span>}
+                  {!c.ai_enabled && <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">AI paused</span>}
                   <span className="truncate text-xs text-muted-foreground">
                     {c.last_direction === "outbound" ? "You: " : ""}{c.last_body}
                   </span>
@@ -190,12 +205,26 @@ export default function InboxPage() {
                   <p className="text-sm font-semibold text-foreground">{thread.name || thread.phone}</p>
                   <p className="text-xs text-muted-foreground">{thread.phone}</p>
                 </div>
-                {thread.status === "resolved" ? (
-                  <Button size="sm" variant="outline" onClick={() => setStatus("open")}>Reopen</Button>
-                ) : (
-                  <Button size="sm" variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => setStatus("resolved")}>Mark resolved</Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {thread.ai_enabled ? (
+                    <Button size="sm" variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100" onClick={() => setAiEnabled(false)}>
+                      Pause AI
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setAiEnabled(true)}>Resume AI</Button>
+                  )}
+                  {thread.status === "resolved" ? (
+                    <Button size="sm" variant="outline" onClick={() => setStatus("open")}>Reopen</Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => setStatus("resolved")}>Mark resolved</Button>
+                  )}
+                </div>
               </div>
+              {!thread.ai_enabled && (
+                <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+                  AI auto-replies are paused for this conversation — replies here must be sent manually.
+                </div>
+              )}
 
               <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
                 {thread.messages.map((m, i) => (

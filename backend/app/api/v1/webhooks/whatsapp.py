@@ -9,6 +9,7 @@ from app.models.customer import Customer
 from app.models.lead import Lead, LeadStatus
 from app.models.location import Location
 from app.models.suppression import SuppressionList, SuppressionReason, SuppressionSource
+from app.models.inbox_extras import ConversationState
 from app.tasks.whatsapp_tasks import generate_and_send_ai_reply
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,11 @@ def _suppress_contact(db: Session, phone: str) -> None:
     if customer:
         customer.is_suppressed = True
     db.commit()
+
+
+def _ai_enabled_for(db: Session, phone: str) -> bool:
+    state = db.query(ConversationState).filter(ConversationState.phone == phone).first()
+    return state.ai_enabled if state else True
 
 
 def _resolve_location(db: Session, value: dict) -> Location | None:
@@ -116,8 +122,9 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
             _handle_lead_reply(db, phone)
 
             # Let the AI assistant answer free-form within the 24h customer service window —
-            # no template needed since the customer messaged us first.
-            if location and text:
+            # no template needed since the customer messaged us first. Skipped if a staff
+            # member has paused AI for this conversation (Inbox -> Pause AI).
+            if location and text and _ai_enabled_for(db, phone):
                 generate_and_send_ai_reply.delay(phone=phone, location_id=str(location.id))
 
     except (KeyError, IndexError) as e:
