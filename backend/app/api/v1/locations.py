@@ -7,6 +7,7 @@ from app.core.security import hash_password, verify_password
 from app.api.v1.auth import _get_current_user
 from app.models.location import Location
 from app.models.user import User
+from app.core.phone import normalize_phone
 from app.schemas.location import (
     LocationCreate,
     LocationUpdate,
@@ -111,6 +112,8 @@ def clear_active_location(response: Response, _=Depends(_get_current_user)):
 @router.post("", response_model=LocationOut, status_code=201)
 def create_location(body: LocationCreate, db: Session = Depends(get_db), user: User = Depends(_get_current_user)):
     data = body.model_dump(exclude={"password"})
+    if data.get("phone"):
+        data["phone"] = normalize_phone(data["phone"])
     location = Location(
         **data,
         owner_id=user.id,
@@ -142,6 +145,8 @@ def update_location(
         raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
     updates = body.model_dump(exclude_none=True, exclude={"password"})
     for field, value in updates.items():
+        if field == "phone":
+            value = normalize_phone(value)
         setattr(loc, field, value)
     if body.password:
         loc.password_hash = hash_password(body.password)
@@ -174,7 +179,7 @@ def connect_whatsapp(
     loc.whatsapp_phone_number_id = body.phone_number_id.strip()
     loc.whatsapp_waba_id = body.waba_id.strip()
     loc.whatsapp_access_token = body.access_token.strip()
-    loc.whatsapp_display_phone = body.display_phone.strip() if body.display_phone else None
+    loc.whatsapp_display_phone = normalize_phone(body.display_phone.strip()) if body.display_phone else None
     db.commit()
     return WhatsAppStatusOut(
         connected=True,

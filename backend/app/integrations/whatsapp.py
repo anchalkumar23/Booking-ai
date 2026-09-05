@@ -3,6 +3,7 @@ import logging
 import httpx
 from typing import Optional
 from app.core.config import settings
+from app.core.phone import normalize_phone as _normalize_phone
 
 logger = logging.getLogger(__name__)
 GRAPH_URL = "https://graph.facebook.com/v21.0"
@@ -17,18 +18,6 @@ class WhatsAppCredentials:
     def __init__(self, phone_number_id: str, access_token: str):
         self.phone_number_id = phone_number_id
         self.access_token = access_token
-
-
-def _normalize_phone(phone: str) -> str:
-    """Ensure phone is in international format (+91XXXXXXXXXX) for WhatsApp."""
-    phone = (phone or "").strip().replace(" ", "").replace("-", "")
-    if phone.startswith("+"):
-        return phone
-    if phone.startswith("91") and len(phone) == 12:
-        return "+" + phone
-    if len(phone) == 10:
-        return "+91" + phone
-    return phone
 
 
 def _resolve_credentials(
@@ -179,15 +168,16 @@ def _body_text(components: list) -> str:
     return ""
 
 
-def list_approved_templates(waba_id: str, access_token: str) -> list[dict]:
-    """List APPROVED message templates for a WABA, with each one's body variable count.
-    Returns [{name, language, category, variables, body}] — used to populate the
-    broadcast template picker in the dashboard."""
+def list_all_templates(waba_id: str, access_token: str) -> list[dict]:
+    """List every message template for a WABA, any review status.
+    Returns [{name, language, category, status, rejected_reason, variables, body}] —
+    used for the template management UI so users see Pending/Rejected alongside
+    Approved ones after submitting a new template."""
     if not waba_id or not access_token:
         return []
     out: list[dict] = []
     url = f"{GRAPH_URL}/{waba_id}/message_templates"
-    params = {"fields": "name,status,language,category,components", "limit": 200}
+    params = {"fields": "name,status,language,category,components,rejected_reason", "limit": 200}
     try:
         with httpx.Client(timeout=15) as client:
             resp = client.get(url, headers={"Authorization": f"Bearer {access_token}"}, params=params)
@@ -200,17 +190,67 @@ def list_approved_templates(waba_id: str, access_token: str) -> list[dict]:
         return []
 
     for t in data:
-        if (t.get("status") or "").upper() != "APPROVED":
-            continue
         comps = t.get("components", [])
         out.append({
             "name": t.get("name"),
             "language": t.get("language"),
             "category": t.get("category"),
+            "status": (t.get("status") or "").upper(),
+            "rejected_reason": t.get("rejected_reason"),
             "variables": _body_variable_count(comps),
             "body": _body_text(comps),
         })
     return out
+
+
+def list_approved_templates(waba_id: str, access_token: str) -> list[dict]:
+    """List only APPROVED message templates — used to populate the broadcast
+    template picker when launching a campaign."""
+    return [t for t in list_all_templates(waba_id, access_token) if t.get("status") == "APPROVED"]
+
+
+def create_message_template(
+    waba_id: str,
+    access_token: str,
+    name: str,
+    category: str,
+    language: str,
+    body_text: str,
+    example_params: Optional[list] = None,
+) -> dict:
+    """Submit a new WhatsApp message template to Meta for review.
+    Meta returns it with status PENDING; once approved it shows up automatically
+    in list_approved_templates / list_all_templates — no polling needed on our side."""
+    components: list = [{"type": "BODY", "text": body_text}]
+    var_count = _body_variable_count(components)
+    if var_count > 0:
+        params = [str(p) for p in (example_params or [])][:var_count]
+        while len(params) < var_count:
+            params.append(f"example{len(params) + 1}")
+        components[0]["example"] = {"body_text": [params]}
+
+    payload = {
+        "name": name,
+        "language": language,
+        "category": category.upper(),
+        "components": components,
+    }
+    url = f"{GRAPH_URL}/{waba_id}/message_templates"
+    with httpx.Client(timeout=20) as client:
+        resp = client.post(
+            url,
+            headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        if not resp.is_success:
+            logger.error(f"WhatsApp template create error {resp.status_code}: {resp.text}")
+            try:
+                err = resp.json().get("error", {})
+                message = err.get("error_user_msg") or err.get("message") or resp.text
+            except Exception:
+                message = resp.text
+            raise ValueError(message)
+        return resp.json()
 
 
 def is_opt_out(message_text: str) -> bool:

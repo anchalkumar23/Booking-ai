@@ -278,7 +278,7 @@ export default function LocationsPage() {
               </div>
               <div>
                 <Label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</Label>
-                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+919876543210" />
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="9876543210" />
               </div>
             </div>
             <div>
@@ -313,7 +313,7 @@ export default function LocationsPage() {
             </div>
             <div>
               <Label className="mb-1.5 block text-sm">Display phone (optional)</Label>
-              <Input value={waForm.display_phone} onChange={e => setWaForm({...waForm, display_phone:e.target.value})} placeholder="+919876543210" />
+              <Input value={waForm.display_phone} onChange={e => setWaForm({...waForm, display_phone:e.target.value})} placeholder="9876543210" />
             </div>
             <Button onClick={() => connectWhatsApp(waModalId)} disabled={submitting || !waForm.phone_number_id || !waForm.waba_id || !waForm.access_token} className="w-full">
               {submitting ? "Connecting…" : "Connect WhatsApp"}

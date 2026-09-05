@@ -15,6 +15,7 @@ interface Campaign {
   created_at: string;
 }
 interface WaTemplate { name: string; language: string; category?: string; variables: number; body?: string; }
+interface AllTemplate extends WaTemplate { status: string; rejected_reason?: string | null; }
 interface Stats {
   id: string; name: string; channel: string; total_targets: number; queued: number;
   whatsapp?: { sent: number; delivered: number; read: number; failed: number };
@@ -36,6 +37,23 @@ const AUDIENCE_LABEL: Record<string, string> = {
 
 const selectClass =
   "h-10 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
+
+const TEMPLATE_LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "hi", label: "Hindi" },
+  { value: "ta_IN", label: "Tamil" },
+];
+
+function countTemplateVars(body: string): number {
+  const nums = [...body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map(m => Number(m[1]));
+  return nums.length ? Math.max(...nums) : 0;
+}
+
+function statusBadgeClass(status: string): string {
+  if (status === "APPROVED") return "bg-emerald-50 text-emerald-700";
+  if (status === "REJECTED") return "bg-rose-50 text-rose-700";
+  return "bg-amber-50 text-amber-700"; // PENDING and anything else in review
+}
 
 // Shared channel + message/template block used by both the New and Import modals.
 function ChannelFields({
@@ -140,6 +158,51 @@ export default function CampaignsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [allTemplates, setAllTemplates] = useState<AllTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ name: "", category: "MARKETING", language: "en", body: "", example_params: [] as string[] });
+
+  const loadAllTemplates = useCallback(async () => {
+    if (!locationId) return;
+    setTemplatesLoading(true);
+    try {
+      const r = await apiFetch<{ connected: boolean; templates: AllTemplate[] }>(`/v1/campaigns/templates/all?location_id=${locationId}`);
+      setAllTemplates(r.templates || []);
+    } catch { setToast({ message: "Failed to load templates", type: "error" }); }
+    finally { setTemplatesLoading(false); }
+  }, [locationId]);
+
+  function openTemplates() {
+    setShowTemplates(true);
+    loadAllTemplates();
+  }
+
+  async function submitTemplate() {
+    const varCount = countTemplateVars(newTemplate.body);
+    if (!newTemplate.name.trim() || !newTemplate.body.trim()) return;
+    setCreatingTemplate(true);
+    try {
+      await apiFetch("/v1/campaigns/templates", {
+        method: "POST",
+        body: JSON.stringify({
+          location_id: locationId,
+          name: newTemplate.name,
+          category: newTemplate.category,
+          language: newTemplate.language,
+          body: newTemplate.body,
+          example_params: newTemplate.example_params.slice(0, varCount),
+        }),
+      });
+      setToast({ message: "Submitted for review — Meta usually takes a few minutes to a few hours. It'll show up as Approved here (and in the campaign picker) once cleared.", type: "success" });
+      setNewTemplate({ name: "", category: "MARKETING", language: "en", body: "", example_params: [] });
+      loadAllTemplates();
+    } catch (e: any) {
+      setToast({ message: e.detail?.message || "Failed to submit template", type: "error" });
+    } finally { setCreatingTemplate(false); }
+  }
+
   async function openStats(id: string) {
     setStatsLoading(true);
     setStats(null);
@@ -181,12 +244,14 @@ export default function CampaignsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  useEffect(() => {
+  const loadApprovedTemplates = useCallback(() => {
     if (!locationId) return;
     apiFetch<{ connected: boolean; templates: WaTemplate[] }>(`/v1/campaigns/templates?location_id=${locationId}`)
       .then(r => { setWaConnected(r.connected); setTemplates(r.templates || []); })
       .catch(() => { setWaConnected(false); setTemplates([]); });
   }, [locationId]);
+
+  useEffect(() => { loadApprovedTemplates(); }, [loadApprovedTemplates]);
 
   useEffect(() => { setPreviewCount(null); }, [form.audience, form.tier, form.expiring_days, form.lead_status]);
 
@@ -311,6 +376,7 @@ export default function CampaignsPage() {
           <p className="mt-2 text-muted-foreground">Bulk calls &amp; WhatsApp broadcasts for {activeLocation?.name}</p>
         </div>
         <div className="flex gap-2.5">
+          <Button variant="outline" onClick={openTemplates}>Manage Templates</Button>
           <Button variant="outline" onClick={() => setShowImport(true)}>Import CSV / Excel</Button>
           <Button onClick={() => setShowNew(true)}>+ New Campaign</Button>
         </div>
@@ -483,13 +549,120 @@ export default function CampaignsPage() {
                 className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground hover:file:bg-secondary/70"
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Columns: <code>phone</code> (required, with +91), <code>full_name</code> (optional). Suppressed / opted-out numbers are skipped.
+                Columns: <code>phone</code> (required — a 10-digit number is fine, +91 is added automatically), <code>full_name</code> (optional). Suppressed / opted-out numbers are skipped.
               </p>
             </div>
 
             <Button onClick={importCampaign} disabled={importing || !importFormValid()} className="w-full">
               {importing ? "Uploading & launching…" : importForm.channel === "whatsapp" ? "Upload & Send WhatsApp" : "Upload & Start Calling"}
             </Button>
+          </div>
+        </Modal>
+      )}
+
+      {showTemplates && (
+        <Modal title="WhatsApp Templates" onClose={() => { setShowTemplates(false); loadApprovedTemplates(); }}>
+          <div className="flex flex-col gap-4">
+            <p className="text-xs text-muted-foreground">
+              Submit a new template for Meta&apos;s review here. Once approved it appears automatically in the campaign
+              template picker — no need to create it in WhatsApp Manager separately.
+            </p>
+
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your templates</h3>
+              {templatesLoading ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
+              ) : !waConnected ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-700">
+                  WhatsApp isn&apos;t connected for this location. Connect it under Locations first.
+                </div>
+              ) : allTemplates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No templates yet — submit your first one below.</p>
+              ) : (
+                <div className="max-h-52 space-y-2 overflow-y-auto">
+                  {allTemplates.map(t => (
+                    <div key={`${t.name}_${t.language}`} className="rounded-xl border border-border px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground">{t.name}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass(t.status)}`}>
+                          {t.status === "PENDING" ? "In review" : t.status.charAt(0) + t.status.slice(1).toLowerCase()}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{t.category} · {t.language}</p>
+                      {t.body && <p className="mt-1 truncate text-xs text-muted-foreground" title={t.body}>{t.body}</p>}
+                      {t.status === "REJECTED" && t.rejected_reason && (
+                        <p className="mt-1 text-xs text-rose-600">Rejected: {t.rejected_reason}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {waConnected && (
+              <div className="space-y-3 border-t border-border pt-3.5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">New template</h3>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Name *</label>
+                  <Input
+                    value={newTemplate.name}
+                    onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                    placeholder="diwali_offer_2026"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Lowercase letters, numbers, underscores only — auto-corrected on submit.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-foreground">Category</label>
+                    <select value={newTemplate.category} onChange={e => setNewTemplate({ ...newTemplate, category: e.target.value })} className={selectClass}>
+                      <option value="MARKETING">Marketing</option>
+                      <option value="UTILITY">Utility</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-foreground">Language</label>
+                    <select value={newTemplate.language} onChange={e => setNewTemplate({ ...newTemplate, language: e.target.value })} className={selectClass}>
+                      {TEMPLATE_LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">Body *</label>
+                  <textarea
+                    value={newTemplate.body}
+                    onChange={e => setNewTemplate({ ...newTemplate, body: e.target.value })}
+                    rows={4}
+                    placeholder={"Hi {{1}}, we're running a special offer at {{2}} this month..."}
+                    className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Use <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… for variables you&apos;ll fill in per campaign.</p>
+                </div>
+                {countTemplateVars(newTemplate.body) > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Sample values for Meta&apos;s review (not sent to customers):</p>
+                    {Array.from({ length: countTemplateVars(newTemplate.body) }).map((_, i) => (
+                      <Input
+                        key={i}
+                        value={newTemplate.example_params[i] || ""}
+                        onChange={e => {
+                          const next = [...newTemplate.example_params];
+                          next[i] = e.target.value;
+                          setNewTemplate({ ...newTemplate, example_params: next });
+                        }}
+                        placeholder={`Example for {{${i + 1}}}`}
+                      />
+                    ))}
+                  </div>
+                )}
+                <Button
+                  onClick={submitTemplate}
+                  disabled={creatingTemplate || !newTemplate.name.trim() || !newTemplate.body.trim()}
+                  className="w-full"
+                >
+                  {creatingTemplate ? "Submitting…" : "Submit for Review"}
+                </Button>
+              </div>
+            )}
           </div>
         </Modal>
       )}

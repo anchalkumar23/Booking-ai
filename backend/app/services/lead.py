@@ -7,6 +7,7 @@ from app.models.lead import Lead, LeadStatus
 from app.models.suppression import SuppressionList
 from app.models.customer import Language
 from app.models.location import Location
+from app.core.phone import normalize_phone
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ def create_lead_and_trigger_outreach(
     follow_up_date: Optional[date] = None,
 ) -> Lead:
     """Create a lead and immediately fire WhatsApp sequence + Bolna call."""
+    phone = normalize_phone(phone)
+
     # Validate location exists
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
@@ -118,7 +121,7 @@ def bulk_create_leads(
     CALL_STAGGER_SECS = 60
 
     for row in rows:
-        phone = row.get("phone", "").strip()
+        phone = normalize_phone(row.get("phone", "").strip())
         full_name = row.get("full_name", "").strip()
 
         if not phone or not full_name:

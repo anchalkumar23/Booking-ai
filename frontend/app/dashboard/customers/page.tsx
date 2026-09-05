@@ -122,7 +122,7 @@ export default function CustomersPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
-                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+91..." />
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="9876543210" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

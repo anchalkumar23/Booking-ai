@@ -21,6 +21,7 @@ from app.services.availability import get_available_slots, find_available_staff
 from app.services.appointment import create_appointment
 from app.models.appointment import BookedVia
 from app.models.suppression import SuppressionList
+from app.core.phone import normalize_phone
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inbound", tags=["inbound"])
@@ -110,9 +111,11 @@ def book_appointment_inbound(
     Called by Bolna 'Book Appointment' function tool mid-conversation.
     Creates or finds the customer and books the appointment.
     """
+    customer_phone = normalize_phone(body.customer_phone)
+
     # Check suppression
     suppressed = db.query(SuppressionList).filter(
-        SuppressionList.phone == body.customer_phone
+        SuppressionList.phone == customer_phone
     ).first()
     if suppressed:
         return {"success": False, "message": "This number has opted out of our services."}
@@ -133,12 +136,12 @@ def book_appointment_inbound(
     language = lang_map.get(body.language, Language.en)
 
     # Find or create customer
-    customer = db.query(Customer).filter(Customer.phone == body.customer_phone).first()
+    customer = db.query(Customer).filter(Customer.phone == customer_phone).first()
     if not customer:
         customer = Customer(
             location_id=location_id,
             full_name=body.customer_name,
-            phone=body.customer_phone,
+            phone=customer_phone,
             language=language,
         )
         db.add(customer)

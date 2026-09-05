@@ -1,6 +1,7 @@
 import logging
 import httpx
 from app.core.config import settings
+from app.core.phone import normalize_phone as _normalize_phone
 
 logger = logging.getLogger(__name__)
 
@@ -12,18 +13,6 @@ def _headers() -> dict:
         "Authorization": f"Bearer {settings.bolna_api_key}",
         "Content-Type": "application/json",
     }
-
-
-def _normalize_phone(phone: str) -> str:
-    """Ensure phone is in international format (+91XXXXXXXXXX) for Bolna."""
-    phone = phone.strip().replace(" ", "").replace("-", "")
-    if phone.startswith("+"):
-        return phone
-    if phone.startswith("91") and len(phone) == 12:
-        return "+" + phone
-    if len(phone) == 10:
-        return "+91" + phone
-    return phone
 
 
 async def trigger_outbound_call(

@@ -10,6 +10,7 @@ from app.models.lead import Lead, LeadStatus
 from app.models.location import Location
 from app.models.suppression import SuppressionList, SuppressionReason, SuppressionSource
 from app.models.inbox_extras import ConversationState
+from app.core.phone import normalize_phone
 from app.tasks.whatsapp_tasks import generate_and_send_ai_reply
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,10 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
 
         messages = value.get("messages", [])
         for msg in messages:
-            phone = msg["from"]
+            # Meta sends this without a leading '+' (e.g. "919876543210"); normalize so
+            # it matches however the number is stored from leads/campaigns/CSV import —
+            # otherwise the same contact fragments into two different inbox conversations.
+            phone = normalize_phone(msg["from"])
             wa_message_id = msg["id"]
             msg_type = msg.get("type", "text")
             text = ""

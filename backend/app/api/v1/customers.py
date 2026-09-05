@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.api.v1.auth import _get_current_user
 from app.models.customer import Customer
 from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerOut
+from app.core.phone import normalize_phone
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -29,13 +30,15 @@ def list_customers(
 
 @router.post("", response_model=CustomerOut, status_code=201)
 def create_customer(body: CustomerCreate, db: Session = Depends(get_db), _=Depends(_get_current_user)):
-    existing = db.query(Customer).filter(Customer.phone == body.phone).first()
+    data = body.model_dump()
+    data["phone"] = normalize_phone(data["phone"])
+    existing = db.query(Customer).filter(Customer.phone == data["phone"]).first()
     if existing:
         raise HTTPException(
             status_code=409,
             detail={"message": "A customer with this phone number already exists.", "code": "duplicate_phone"},
         )
-    customer = Customer(**body.model_dump())
+    customer = Customer(**data)
     db.add(customer)
     db.commit()
     db.refresh(customer)
@@ -65,6 +68,8 @@ def update_customer(customer_id: uuid.UUID, body: CustomerUpdate, db: Session = 
     if not customer:
         raise HTTPException(status_code=404, detail={"message": "Customer not found.", "code": "not_found"})
     for field, value in body.model_dump(exclude_none=True).items():
+        if field == "phone":
+            value = normalize_phone(value)
         setattr(customer, field, value)
     db.commit()
     db.refresh(customer)

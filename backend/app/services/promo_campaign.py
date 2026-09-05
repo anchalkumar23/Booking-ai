@@ -11,6 +11,7 @@ from app.models.membership import Membership
 from app.models.lead import Lead, LeadStatus
 from app.models.location import Location
 from app.models.suppression import SuppressionList
+from app.core.phone import normalize_phone
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ def resolve_audience(
     contacts: dict[str, dict] = {}  # keyed by phone → dedupe
 
     def add(phone: str, name: str, language: str):
-        phone = (phone or "").strip()
+        phone = normalize_phone((phone or "").strip())
         if not phone or phone in suppressed or phone in contacts:
             return
         contacts[phone] = {"phone": phone, "name": name or "there", "language": language or "en"}
@@ -170,7 +171,7 @@ def launch_campaign_from_contacts(
     contacts: dict[str, dict] = {}
     skipped = 0
     for row in rows:
-        phone = str(row.get("phone", "")).strip()
+        phone = normalize_phone(str(row.get("phone", "")).strip())
         cname = str(row.get("full_name") or row.get("name") or "there").strip()
         if not phone:
             skipped += 1

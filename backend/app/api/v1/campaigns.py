@@ -1,10 +1,12 @@
 import csv
 import io
 import json
+import re
 import uuid
 import openpyxl
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from sqlalchemy import func
@@ -15,7 +17,12 @@ from app.models.location import Location
 from app.models.whatsapp_message import WhatsAppMessage, WADirection, WAStatus
 from app.models.call_log import CallLog
 from app.schemas.promo_campaign import CampaignCreate, CampaignPreview, CampaignOut
-from app.integrations.whatsapp import list_approved_templates, credentials_from_location
+from app.integrations.whatsapp import (
+    list_approved_templates,
+    list_all_templates,
+    create_message_template,
+    credentials_from_location,
+)
 from app.services.promo_campaign import (
     create_and_launch_campaign,
     launch_campaign_from_contacts,
@@ -41,6 +48,78 @@ def list_wa_templates(
     if not waba_id or not token:
         return {"connected": False, "templates": []}
     return {"connected": True, "templates": list_approved_templates(waba_id, token)}
+
+
+@router.get("/templates/all")
+def list_all_wa_templates(
+    location_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """List every WhatsApp template for this location (any review status) — for the
+    template management screen, so a submitted-but-pending template is visible."""
+    location = db.query(Location).filter(Location.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
+    waba_id = location.whatsapp_waba_id
+    creds = credentials_from_location(location)
+    token = creds.access_token if creds else None
+    if not waba_id or not token:
+        return {"connected": False, "templates": []}
+    return {"connected": True, "templates": list_all_templates(waba_id, token)}
+
+
+class TemplateCreate(BaseModel):
+    location_id: uuid.UUID
+    name: str = Field(min_length=1)
+    category: str  # MARKETING | UTILITY
+    language: str = "en"
+    body: str = Field(min_length=1)
+    example_params: List[str] = []
+
+
+@router.post("/templates", status_code=201)
+def create_wa_template(
+    body: TemplateCreate,
+    db: Session = Depends(get_db),
+    _=Depends(_get_current_user),
+):
+    """Submit a new WhatsApp message template to Meta for review. Meta typically
+    reviews within minutes to a few hours; once approved, it appears automatically
+    in the campaign template picker — no further action needed here."""
+    location = db.query(Location).filter(Location.id == body.location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail={"message": "Location not found.", "code": "not_found"})
+    waba_id = location.whatsapp_waba_id
+    creds = credentials_from_location(location)
+    token = creds.access_token if creds else None
+    if not waba_id or not token:
+        raise HTTPException(status_code=400, detail={"message": "WhatsApp is not connected for this location.", "code": "not_connected"})
+
+    # Meta requires lowercase letters, digits, and underscores only.
+    name = re.sub(r"[^a-z0-9_]", "_", body.name.strip().lower())
+    if not name:
+        raise HTTPException(status_code=400, detail={"message": "Template name is required.", "code": "invalid_name"})
+
+    try:
+        result = create_message_template(
+            waba_id=waba_id,
+            access_token=token,
+            name=name,
+            category=body.category,
+            language=body.language or "en",
+            body_text=body.body.strip(),
+            example_params=body.example_params,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"message": str(e), "code": "meta_error"})
+
+    return {
+        "id": result.get("id"),
+        "name": name,
+        "status": (result.get("status") or "PENDING").upper(),
+        "category": result.get("category", body.category.upper()),
+    }
 
 
 @router.get("", response_model=List[CampaignOut])

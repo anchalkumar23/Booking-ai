@@ -167,7 +167,7 @@ export default function LeadsPage() {
       </div>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        <b>CSV / Excel import:</b> Columns needed: <code>full_name</code>, <code>phone</code> (with +91), optional: <code>language</code> (en/hi/ta), <code>source</code>. Bulk calls are staggered 1 min apart automatically.
+        <b>CSV / Excel import:</b> Columns needed: <code>full_name</code>, <code>phone</code> (a 10-digit number is fine, +91 is added automatically), optional: <code>language</code> (en/hi/ta), <code>source</code>. Bulk calls are staggered 1 min apart automatically.
       </div>
 
       {/* Table */}
@@ -251,7 +251,7 @@ export default function LeadsPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
-                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="+919876543210" />
+                <Input value={form.phone} onChange={e => setForm({...form,phone:e.target.value})} placeholder="9876543210" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

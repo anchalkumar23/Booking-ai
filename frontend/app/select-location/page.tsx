@@ -213,7 +213,7 @@ function SelectLocationContent() {
               </div>
               <div>
                 <Label className="mb-1.5 block">Phone *</Label>
-                <Input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} placeholder="+919876543210" />
+                <Input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} placeholder="9876543210" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
