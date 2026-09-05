@@ -31,14 +31,14 @@ const OUTCOME_COLORS: Record<string, string> = {
 };
 
 function formatDuration(secs: number): string {
-  if (!secs) return "—";
+  if (!secs) return "N/A";
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function formatTime(iso: string): string {
-  if (!iso) return "—";
+  if (!iso) return "N/A";
   return new Date(iso).toLocaleString("en-IN", {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: true,
@@ -148,7 +148,7 @@ export default function CallsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`font-semibold ${c.confidence_score < 0.7 ? "text-rose-600" : "text-emerald-600"}`}>
-                      {c.confidence_score ? `${Math.round(c.confidence_score * 100)}%` : "—"}
+                      {c.confidence_score ? `${Math.round(c.confidence_score * 100)}%` : "N/A"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDuration(c.duration_secs)}</td>

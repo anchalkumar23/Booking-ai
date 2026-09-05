@@ -71,7 +71,7 @@ export default function PortalPage() {
               <select id="location" value={locationId} onChange={e => setLocationId(e.target.value)} required className={selectClass}>
                 <option value="">Select your location…</option>
                 {locations.map(l => (
-                  <option key={l.id} value={l.id}>{l.name} — {l.city}</option>
+                  <option key={l.id} value={l.id}>{l.name} · {l.city}</option>
                 ))}
               </select>
             </div>
@@ -137,7 +137,7 @@ export default function PortalPage() {
                   <div key={a.id} className="rounded-xl bg-secondary/60 px-3 py-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">{a.customer_name} — {a.service}</p>
+                        <p className="text-sm font-semibold text-foreground">{a.customer_name} · {a.service}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">{new Date(a.scheduled_at).toLocaleString()}</p>
                       </div>
                       <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">{a.status}</span>

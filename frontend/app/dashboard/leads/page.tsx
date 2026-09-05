@@ -60,7 +60,7 @@ export default function LeadsPage() {
     try {
       const payload = { ...form, location_id: locationId, follow_up_date: form.follow_up_date || null };
       await apiFetch("/v1/leads", { method:"POST", body:JSON.stringify(payload) });
-      setToast({message:"Lead added — outreach started",type:"success"});
+      setToast({message:"Lead added. Outreach started",type:"success"});
       setShowAdd(false);
       setForm({full_name:"",phone:"",language:"en",source:"manual",follow_up_date:""});
       fetchData();
@@ -200,7 +200,7 @@ export default function LeadsPage() {
                         {new Date(l.follow_up_date).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">N/A</span>
                     )}
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={l.status} /></td>

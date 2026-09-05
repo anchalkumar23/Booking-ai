@@ -97,7 +97,7 @@ export default function CustomersPage() {
                 <tr key={c.id} className="border-b border-border/60 last:border-0">
                   <td className="px-4 py-3 font-semibold text-foreground">{c.full_name}</td>
                   <td className="px-4 py-3">{c.phone}</td>
-                  <td className="px-4 py-3">{c.email || "—"}</td>
+                  <td className="px-4 py-3">{c.email || "N/A"}</td>
                   <td className="px-4 py-3">{c.language.toUpperCase()}</td>
                   <td className="px-4 py-3">{c.is_dnd ? <span className="font-semibold text-rose-500">Yes</span> : "No"}</td>
                   <td className="px-4 py-3">{c.is_suppressed ? <span className="font-semibold text-rose-500">Yes</span> : "No"}</td>

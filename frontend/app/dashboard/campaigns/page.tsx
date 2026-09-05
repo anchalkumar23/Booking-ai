@@ -170,7 +170,7 @@ export default function CampaignsPage() {
     return val && val.trim() ? val : `[variable ${n}]`;
   });
 
-  // Insert the next {{n}} token at the textarea cursor — the user never types the
+  // Insert the next {{n}} token at the textarea cursor. The user never types the
   // curly-brace syntax themselves, just clicks where a detail should change per customer.
   function insertTemplateVariable() {
     const ta = templateBodyRef.current;
@@ -221,7 +221,7 @@ export default function CampaignsPage() {
           example_params: newTemplate.example_params.slice(0, templateVarCount),
         }),
       });
-      setToast({ message: "Submitted for review — Meta usually takes a few minutes to a few hours. It'll show up as Approved here (and in the campaign picker) once cleared.", type: "success" });
+      setToast({ message: "Submitted for review. Meta usually takes a few minutes to a few hours. It'll show up as Approved here (and in the campaign picker) once cleared.", type: "success" });
       setNewTemplate({ name: "", category: "MARKETING", language: "en", body: "", example_params: [] });
       loadAllTemplates();
     } catch (e: any) {
@@ -240,7 +240,7 @@ export default function CampaignsPage() {
 
   async function deleteCampaign(id: string, name: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Delete campaign "${name}"? This only removes it from history — already-sent calls/messages aren't affected.`)) return;
+    if (!confirm(`Delete campaign "${name}"? This only removes it from history. Already-sent calls/messages aren't affected.`)) return;
     try {
       await apiFetch(`/v1/campaigns/${id}`, { method: "DELETE" });
       setCampaigns(prev => prev.filter(c => c.id !== id));
@@ -340,7 +340,7 @@ export default function CampaignsPage() {
       setToast({
         message: created.total_targets === 0
           ? "Campaign created, but no contacts matched that audience."
-          : `Campaign launched — ${queued} ${verb} queued.`,
+          : `Campaign launched. ${queued} ${verb} queued.`,
         type: created.total_targets === 0 ? "error" : "success",
       });
       setShowNew(false);
@@ -379,7 +379,7 @@ export default function CampaignsPage() {
       setToast({
         message: created.total_targets === 0
           ? "No valid contacts found in the file."
-          : `Campaign launched — ${queued} ${verb} queued, ${created.skipped} skipped.`,
+          : `Campaign launched. ${queued} ${verb} queued, ${created.skipped} skipped.`,
         type: created.total_targets === 0 ? "error" : "success",
       });
       setShowImport(false);
@@ -409,7 +409,7 @@ export default function CampaignsPage() {
       </header>
 
       <div className="mb-5 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs text-violet-700">
-        Pick a channel per campaign — <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped. <b>Click any campaign</b> to see delivery stats.
+        Pick a channel per campaign: <b>voice calls</b> or a <b>WhatsApp</b> broadcast. WhatsApp uses your approved templates. Suppressed / opted-out contacts are always skipped. <b>Click any campaign</b> to see delivery stats.
       </div>
 
       {loading ? (
@@ -432,7 +432,7 @@ export default function CampaignsPage() {
                   <td className="px-4 py-3">
                     <span className="font-semibold text-foreground">{c.name}</span>
                     <p className="mt-0.5 max-w-xs truncate text-xs text-muted-foreground" title={c.wa_template || c.message}>
-                      {c.channel === "whatsapp" ? (c.wa_template || "—") : c.message}
+                      {c.channel === "whatsapp" ? (c.wa_template || "N/A") : c.message}
                     </p>
                   </td>
                   <td className="px-4 py-3">
@@ -575,7 +575,7 @@ export default function CampaignsPage() {
                 className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground hover:file:bg-secondary/70"
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Columns: <code>phone</code> (required — a 10-digit number is fine, +91 is added automatically), <code>full_name</code> (optional). Suppressed / opted-out numbers are skipped.
+                Columns: <code>phone</code> (required; a 10-digit number is fine, +91 is added automatically), <code>full_name</code> (optional). Suppressed / opted-out numbers are skipped.
               </p>
             </div>
 
@@ -589,14 +589,16 @@ export default function CampaignsPage() {
       {showTemplates && (
         <Modal title="WhatsApp Templates" width={780} onClose={() => { setShowTemplates(false); loadApprovedTemplates(); }}>
           <p className="text-sm text-muted-foreground">
-            Submit a template for Meta&apos;s review here. Once approved it appears automatically in the campaign
-            picker — no need to create it in WhatsApp Manager separately.
+            Submit a template for Meta&apos;s review here. Once approved, it appears automatically in the campaign
+            picker, so there&apos;s no need to create it in WhatsApp Manager separately.
           </p>
 
+          {/* The whole modal scrolls as one unit (matches every other modal in the app);
+              min-w-0 on both columns keeps a long name/body from forcing horizontal overflow
+              in the CSS grid, which is what produced the extra scrollbar. */}
           <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-[240px_1fr]">
-            {/* Left: existing templates — its own bounded scroll region */}
-            <div className="flex min-h-0 flex-col">
-              <h3 className="mb-2 shrink-0 text-sm font-semibold text-foreground">Your templates</h3>
+            <div className="min-w-0">
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Your templates</h3>
               {templatesLoading ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
               ) : !waConnected ? (
@@ -604,21 +606,21 @@ export default function CampaignsPage() {
                   WhatsApp isn&apos;t connected for this location. Connect it under Locations first.
                 </div>
               ) : allTemplates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">None yet — submit your first one.</p>
+                <p className="text-sm text-muted-foreground">None yet. Submit your first one.</p>
               ) : (
-                <div className="max-h-[min(60vh,420px)] space-y-2 overflow-y-auto pr-1">
+                <div className="space-y-2">
                   {allTemplates.map(t => (
-                    <div key={`${t.name}_${t.language}`} className="rounded-xl border border-border px-3 py-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm font-semibold leading-snug text-foreground">{t.name}</span>
+                    <div key={`${t.name}_${t.language}`} className="min-w-0 rounded-xl border border-border px-3 py-2.5">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-semibold text-foreground">{t.name}</span>
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass(t.status)}`}>
                           {t.status === "PENDING" ? "In review" : t.status.charAt(0) + t.status.slice(1).toLowerCase()}
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">{t.category} · {t.language}</p>
-                      {t.body && <p className="mt-1.5 text-xs text-muted-foreground">{t.body}</p>}
+                      {t.body && <p className="mt-1.5 break-words text-xs text-muted-foreground">{t.body}</p>}
                       {t.status === "REJECTED" && t.rejected_reason && (
-                        <p className="mt-1.5 text-xs text-rose-600">Rejected: {t.rejected_reason}</p>
+                        <p className="mt-1.5 break-words text-xs text-rose-600">Rejected: {t.rejected_reason}</p>
                       )}
                     </div>
                   ))}
@@ -626,9 +628,8 @@ export default function CampaignsPage() {
               )}
             </div>
 
-            {/* Right: create form — its own bounded scroll region, so the modal shell never scrolls */}
             {waConnected && (
-              <div className="max-h-[min(60vh,420px)] space-y-3.5 overflow-y-auto pl-0 sm:border-l sm:border-border sm:pl-5">
+              <div className="min-w-0 space-y-3.5 border-t border-border pt-5 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
                 <h3 className="text-sm font-semibold text-foreground">New template</h3>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-foreground">Name *</label>
@@ -637,7 +638,7 @@ export default function CampaignsPage() {
                     onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })}
                     placeholder="diwali_offer_2026"
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">Lowercase, numbers, underscores only — auto-corrected on submit.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Lowercase, numbers, and underscores only. Auto-corrected on submit.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -655,13 +656,13 @@ export default function CampaignsPage() {
                   </div>
                 </div>
 
-                <div>
-                  <div className="mb-1.5 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                     <label className="text-sm font-medium text-foreground">Message *</label>
                     <button
                       type="button"
                       onClick={insertTemplateVariable}
-                      className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground hover:bg-secondary/70"
+                      className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground hover:bg-secondary/70"
                     >
                       + Insert variable
                     </button>
@@ -680,11 +681,11 @@ export default function CampaignsPage() {
                 </div>
 
                 {templateVarCount > 0 && (
-                  <div className="space-y-2 rounded-xl border border-border bg-secondary/40 p-3">
+                  <div className="min-w-0 space-y-2 rounded-xl border border-border bg-secondary/40 p-3">
                     <p className="text-xs font-medium text-foreground">Fill in an example for each variable</p>
-                    <p className="text-xs text-muted-foreground">Shown to Meta during review only — never sent to customers.</p>
+                    <p className="text-xs text-muted-foreground">Shown to Meta during review only. Never sent to customers.</p>
                     {Array.from({ length: templateVarCount }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={i} className="flex min-w-0 items-center gap-2">
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-card text-xs font-semibold text-foreground">
                           {i + 1}
                         </span>
@@ -703,9 +704,9 @@ export default function CampaignsPage() {
                 )}
 
                 {newTemplate.body.trim() && (
-                  <div>
+                  <div className="min-w-0">
                     <p className="mb-1.5 text-xs font-medium text-foreground">Preview</p>
-                    <div className="rounded-xl bg-emerald-100 px-3.5 py-2.5 text-sm text-emerald-950">
+                    <div className="break-words rounded-xl bg-emerald-100 px-3.5 py-2.5 text-sm text-emerald-950">
                       {templatePreview}
                     </div>
                   </div>
@@ -725,7 +726,7 @@ export default function CampaignsPage() {
       )}
 
       {(stats || statsLoading) && (
-        <Modal title={stats ? `Delivery — ${stats.name}` : "Delivery"} onClose={() => setStats(null)}>
+        <Modal title={stats ? `Delivery for ${stats.name}` : "Delivery"} onClose={() => setStats(null)}>
           {statsLoading || !stats ? (
             <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
           ) : stats.channel === "whatsapp" && stats.whatsapp ? (
@@ -755,7 +756,7 @@ export default function CampaignsPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {stats.whatsapp.sent === 0
-                  ? "No delivery data yet — statuses arrive from Meta within a minute or two of sending."
+                  ? "No delivery data yet. Statuses arrive from Meta within a minute or two of sending."
                   : "Delivered/Read update as Meta reports back. A number stuck at Sent may be in Meta's experiment (130472)."}
               </p>
             </div>

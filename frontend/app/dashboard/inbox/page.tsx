@@ -116,7 +116,7 @@ export default function InboxPage() {
       });
       await loadThread(active);
       loadConvos();
-      setToast({ message: next ? "AI resumed for this conversation" : "AI paused — replies here are manual now", type: "success" });
+      setToast({ message: next ? "AI resumed for this conversation" : "AI paused. Replies here are manual now", type: "success" });
     } catch { setToast({ message: "Failed to update AI setting", type: "error" }); }
   }
 
@@ -222,7 +222,7 @@ export default function InboxPage() {
               </div>
               {!thread.ai_enabled && (
                 <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
-                  AI auto-replies are paused for this conversation — replies here must be sent manually.
+                  AI auto-replies are paused for this conversation. Replies here must be sent manually.
                 </div>
               )}
 

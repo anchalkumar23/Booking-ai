@@ -51,7 +51,7 @@ export async function apiFetch<T>(
 
   let res = await doFetch(path, options);
 
-  // Access token (30 min) likely expired — refresh once using the 7-day
+  // Access token (30 min) likely expired: refresh once using the 7-day
   // refresh cookie and retry the original request.
   if (res.status === 401 && canRefresh) {
     const refreshed = await tryRefresh();

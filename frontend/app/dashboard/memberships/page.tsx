@@ -236,10 +236,10 @@ export default function MembershipsPage() {
                 return (
                   <tr key={m.id} className={`border-b border-border/60 last:border-0 ${isUrgent ? "bg-amber-50" : ""}`}>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-foreground">{m.customer_name || "—"}</div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">{m.customer_phone || "—"}</div>
+                      <div className="font-semibold text-foreground">{m.customer_name || "N/A"}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{m.customer_phone || "N/A"}</div>
                     </td>
-                    <td className="px-4 py-3">{m.location_name || "—"}</td>
+                    <td className="px-4 py-3">{m.location_name || "N/A"}</td>
                     <td className="px-4 py-3">
                       <span className="whitespace-nowrap rounded-md bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">{m.tier}</span>
                     </td>
@@ -286,7 +286,7 @@ export default function MembershipsPage() {
               <label className="mb-1.5 block text-sm font-medium text-foreground">Customer *</label>
               <select value={addForm.customer_id} onChange={e => setAddForm(f => ({ ...f, customer_id: e.target.value }))} className={selectClass}>
                 <option value="">Select customer…</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} — {c.phone}</option>)}
+                {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} · {c.phone}</option>)}
               </select>
             </div>
 
@@ -330,7 +330,7 @@ export default function MembershipsPage() {
 
       {/* Edit Modal */}
       {showEdit && (
-        <Modal title={`Edit — ${showEdit.customer_name || "Membership"}`} onClose={() => setShowEdit(null)}>
+        <Modal title={`Edit ${showEdit.customer_name || "Membership"}`} onClose={() => setShowEdit(null)}>
           <div className="flex flex-col gap-3.5">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Tier</label>

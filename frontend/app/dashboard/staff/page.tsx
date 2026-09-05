@@ -149,7 +149,7 @@ export default function StaffPage() {
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Working Hours — click day to toggle on/off</label>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Working Hours (click a day to toggle on/off)</label>
               <div className="flex flex-col gap-2">
                 {DAYS.map(day => (
                   <div key={day} className="flex items-center gap-2.5">

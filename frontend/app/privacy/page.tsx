@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Privacy Policy — Slam Washermenpet",
+  title: "Privacy Policy | Slam Washermenpet",
   description: "Privacy policy for Slam Washermenpet booking and communication services.",
 };
 
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
         <p>
           Slam Washermenpet ("we", "us", "our") operates gyms, salons, and restaurants across South India.
           This privacy policy explains how we collect, use, and protect your personal information when you
-          interact with us — including through our website, WhatsApp messages, and AI-assisted phone calls.
+          interact with us, including through our website, WhatsApp messages, and AI-assisted phone calls.
         </p>
         <p style={{ marginTop: 8 }}>
           Contact: <a href="mailto:Creativetitan1@gmail.com" style={{ color: "#2563eb" }}>Creativetitan1@gmail.com</a>

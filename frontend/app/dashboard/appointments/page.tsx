@@ -104,7 +104,7 @@ export default function AppointmentsPage() {
   }
 
   function customerName(id: string) {
-    return customers.find(c => c.id === id)?.full_name || "—";
+    return customers.find(c => c.id === id)?.full_name || "N/A";
   }
 
   return (
@@ -204,7 +204,7 @@ export default function AppointmentsPage() {
               </select>
               {locationId && form.date && slots.length === 0 && !loadingSlots && (
                 <p className="mt-1 text-xs text-rose-500">
-                  No open slots. Slots come from your staff&apos;s working hours — add a staff member with hours on the <a href="/dashboard/staff" className="underline underline-offset-2">Staff</a> page, or pick another date.
+                  No open slots. Slots come from your staff&apos;s working hours. Add a staff member with hours on the <a href="/dashboard/staff" className="underline underline-offset-2">Staff</a> page, or pick another date.
                 </p>
               )}
             </div>

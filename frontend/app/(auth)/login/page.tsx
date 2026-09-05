@@ -87,7 +87,7 @@ function LoginForm() {
           </h1>
 
           <p className="mt-4 max-w-sm text-pretty leading-relaxed text-muted-foreground">
-            AI-powered voice calls and WhatsApp automation for your gyms, salons &amp; restaurants — all from one dashboard.
+            AI-powered voice calls and WhatsApp automation for your gyms, salons &amp; restaurants, all from one dashboard.
           </p>
 
           <ul className="mt-6 w-full space-y-2">
