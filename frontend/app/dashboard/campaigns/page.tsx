@@ -163,6 +163,33 @@ export default function CampaignsPage() {
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: "", category: "MARKETING", language: "en", body: "", example_params: [] as string[] });
+  const templateBodyRef = useRef<HTMLTextAreaElement>(null);
+  const templateVarCount = countTemplateVars(newTemplate.body);
+  const templatePreview = newTemplate.body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => {
+    const val = newTemplate.example_params[Number(n) - 1];
+    return val && val.trim() ? val : `[variable ${n}]`;
+  });
+
+  // Insert the next {{n}} token at the textarea cursor — the user never types the
+  // curly-brace syntax themselves, just clicks where a detail should change per customer.
+  function insertTemplateVariable() {
+    const ta = templateBodyRef.current;
+    const nextNum = templateVarCount + 1;
+    const token = `{{${nextNum}}}`;
+    if (!ta) {
+      setNewTemplate({ ...newTemplate, body: newTemplate.body + token });
+      return;
+    }
+    const start = ta.selectionStart ?? newTemplate.body.length;
+    const end = ta.selectionEnd ?? newTemplate.body.length;
+    const nextBody = newTemplate.body.slice(0, start) + token + newTemplate.body.slice(end);
+    setNewTemplate({ ...newTemplate, body: nextBody });
+    requestAnimationFrame(() => {
+      ta.focus();
+      const caret = start + token.length;
+      ta.setSelectionRange(caret, caret);
+    });
+  }
 
   const loadAllTemplates = useCallback(async () => {
     if (!locationId) return;
@@ -180,7 +207,6 @@ export default function CampaignsPage() {
   }
 
   async function submitTemplate() {
-    const varCount = countTemplateVars(newTemplate.body);
     if (!newTemplate.name.trim() || !newTemplate.body.trim()) return;
     setCreatingTemplate(true);
     try {
@@ -192,7 +218,7 @@ export default function CampaignsPage() {
           category: newTemplate.category,
           language: newTemplate.language,
           body: newTemplate.body,
-          example_params: newTemplate.example_params.slice(0, varCount),
+          example_params: newTemplate.example_params.slice(0, templateVarCount),
         }),
       });
       setToast({ message: "Submitted for review — Meta usually takes a few minutes to a few hours. It'll show up as Approved here (and in the campaign picker) once cleared.", type: "success" });
@@ -561,15 +587,16 @@ export default function CampaignsPage() {
       )}
 
       {showTemplates && (
-        <Modal title="WhatsApp Templates" onClose={() => { setShowTemplates(false); loadApprovedTemplates(); }}>
-          <div className="flex flex-col gap-4">
-            <p className="text-xs text-muted-foreground">
-              Submit a new template for Meta&apos;s review here. Once approved it appears automatically in the campaign
-              template picker — no need to create it in WhatsApp Manager separately.
-            </p>
+        <Modal title="WhatsApp Templates" width={780} onClose={() => { setShowTemplates(false); loadApprovedTemplates(); }}>
+          <p className="text-sm text-muted-foreground">
+            Submit a template for Meta&apos;s review here. Once approved it appears automatically in the campaign
+            picker — no need to create it in WhatsApp Manager separately.
+          </p>
 
-            <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your templates</h3>
+          <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-[240px_1fr]">
+            {/* Left: existing templates — its own bounded scroll region */}
+            <div className="flex min-h-0 flex-col">
+              <h3 className="mb-2 shrink-0 text-sm font-semibold text-foreground">Your templates</h3>
               {templatesLoading ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
               ) : !waConnected ? (
@@ -577,21 +604,21 @@ export default function CampaignsPage() {
                   WhatsApp isn&apos;t connected for this location. Connect it under Locations first.
                 </div>
               ) : allTemplates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No templates yet — submit your first one below.</p>
+                <p className="text-sm text-muted-foreground">None yet — submit your first one.</p>
               ) : (
-                <div className="max-h-52 space-y-2 overflow-y-auto">
+                <div className="max-h-[min(60vh,420px)] space-y-2 overflow-y-auto pr-1">
                   {allTemplates.map(t => (
-                    <div key={`${t.name}_${t.language}`} className="rounded-xl border border-border px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-foreground">{t.name}</span>
+                    <div key={`${t.name}_${t.language}`} className="rounded-xl border border-border px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-semibold leading-snug text-foreground">{t.name}</span>
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadgeClass(t.status)}`}>
                           {t.status === "PENDING" ? "In review" : t.status.charAt(0) + t.status.slice(1).toLowerCase()}
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">{t.category} · {t.language}</p>
-                      {t.body && <p className="mt-1 truncate text-xs text-muted-foreground" title={t.body}>{t.body}</p>}
+                      {t.body && <p className="mt-1.5 text-xs text-muted-foreground">{t.body}</p>}
                       {t.status === "REJECTED" && t.rejected_reason && (
-                        <p className="mt-1 text-xs text-rose-600">Rejected: {t.rejected_reason}</p>
+                        <p className="mt-1.5 text-xs text-rose-600">Rejected: {t.rejected_reason}</p>
                       )}
                     </div>
                   ))}
@@ -599,9 +626,10 @@ export default function CampaignsPage() {
               )}
             </div>
 
+            {/* Right: create form — its own bounded scroll region, so the modal shell never scrolls */}
             {waConnected && (
-              <div className="space-y-3 border-t border-border pt-3.5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">New template</h3>
+              <div className="max-h-[min(60vh,420px)] space-y-3.5 overflow-y-auto pl-0 sm:border-l sm:border-border sm:pl-5">
+                <h3 className="text-sm font-semibold text-foreground">New template</h3>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-foreground">Name *</label>
                   <Input
@@ -609,7 +637,7 @@ export default function CampaignsPage() {
                     onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })}
                     placeholder="diwali_offer_2026"
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">Lowercase letters, numbers, underscores only — auto-corrected on submit.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Lowercase, numbers, underscores only — auto-corrected on submit.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -626,34 +654,63 @@ export default function CampaignsPage() {
                     </select>
                   </div>
                 </div>
+
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">Body *</label>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-sm font-medium text-foreground">Message *</label>
+                    <button
+                      type="button"
+                      onClick={insertTemplateVariable}
+                      className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground hover:bg-secondary/70"
+                    >
+                      + Insert variable
+                    </button>
+                  </div>
                   <textarea
+                    ref={templateBodyRef}
                     value={newTemplate.body}
                     onChange={e => setNewTemplate({ ...newTemplate, body: e.target.value })}
                     rows={4}
-                    placeholder={"Hi {{1}}, we're running a special offer at {{2}} this month..."}
+                    placeholder="Hi there, we're running a special offer this month..."
                     className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
                   />
-                  <p className="mt-1 text-xs text-muted-foreground">Use <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… for variables you&apos;ll fill in per campaign.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Write it like a normal message. Put your cursor where a detail changes per customer (a name, a date) and click &quot;Insert variable&quot;.
+                  </p>
                 </div>
-                {countTemplateVars(newTemplate.body) > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Sample values for Meta&apos;s review (not sent to customers):</p>
-                    {Array.from({ length: countTemplateVars(newTemplate.body) }).map((_, i) => (
-                      <Input
-                        key={i}
-                        value={newTemplate.example_params[i] || ""}
-                        onChange={e => {
-                          const next = [...newTemplate.example_params];
-                          next[i] = e.target.value;
-                          setNewTemplate({ ...newTemplate, example_params: next });
-                        }}
-                        placeholder={`Example for {{${i + 1}}}`}
-                      />
+
+                {templateVarCount > 0 && (
+                  <div className="space-y-2 rounded-xl border border-border bg-secondary/40 p-3">
+                    <p className="text-xs font-medium text-foreground">Fill in an example for each variable</p>
+                    <p className="text-xs text-muted-foreground">Shown to Meta during review only — never sent to customers.</p>
+                    {Array.from({ length: templateVarCount }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-card text-xs font-semibold text-foreground">
+                          {i + 1}
+                        </span>
+                        <Input
+                          value={newTemplate.example_params[i] || ""}
+                          onChange={e => {
+                            const next = [...newTemplate.example_params];
+                            next[i] = e.target.value;
+                            setNewTemplate({ ...newTemplate, example_params: next });
+                          }}
+                          placeholder={i === 0 ? "e.g. Ravi" : "e.g. Monday 10am"}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
+
+                {newTemplate.body.trim() && (
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-foreground">Preview</p>
+                    <div className="rounded-xl bg-emerald-100 px-3.5 py-2.5 text-sm text-emerald-950">
+                      {templatePreview}
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={submitTemplate}
                   disabled={creatingTemplate || !newTemplate.name.trim() || !newTemplate.body.trim()}
